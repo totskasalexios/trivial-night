@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171233">
+<title>Trivial Night — player</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="phone">
+  <div class="phone__bar">
+    <span class="eyebrow" id="bar-left">Trivial Night</span>
+    <span class="phone__name" id="bar-right"></span>
+  </div>
+  <main class="phone__stage" id="stage"></main>
+</div>
+
+<script type="module">
+import { db, ref, get, set, update, onValue, onDisconnect, makeId, now } from "./firebase.js";
+
+const stage    = document.getElementById("stage");
+const barLeft  = document.getElementById("bar-left");
+const barRight = document.getElementById("bar-right");
+
+const me = { code: null, pid: null, name: "", isAdmin: false };
+let lastStatus = null;
+let lastIndex  = -1;
+let picked     = null;
+
+const lobbyRef = (...path) => ref(db, ["lobbies", me.code, ...path].join("/"));
+
+renderJoin();
+
+function renderJoin(message = "") {
+  const fromUrl = new URLSearchParams(location.search).get("code") || "";
+  stage.innerHTML = `
+    <h1 class="phone__title">Join the game</h1>
+    <div class="join">
+      <input id="j-code" maxlength="4" autocomplete="off" autocapitalize="characters"
+             spellcheck="false" placeholder="CODE" value="${fromUrl.toUpperCase()}">
+      <input id="j-name" class="name" maxlength="14" autocomplete="off" placeholder="Your name">
+      <p class="error">${message}</p>
+      <button class="btn" id="j-go">Join</button>
+    </div>
+    <p class="phone__note">The code is on the TV. Questions and answers stay on the
+    TV — your phone only shows the four numbers.</p>`;
+  document.getElementById("j-go").onclick = join;
+  document.getElementById("j-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") join();
+  });
+}
+
+async function join() {
+  const code = document.getElementById("j-code").value.trim().toUpperCase();
+  const name = document.getElementById("j-name").value.trim();
+
+  if (code.length !== 4) return renderJoin("A lobby code is four letters.");
+  if (!name)             return renderJoin("Pick a name so the TV can show your score.");
+
+  const snap = await get(ref(db, `lobbies/${code}`));
+  if (!snap.exists()) return renderJoin("No lobby with that code. Check the TV.");
+
+  const lobby = snap.val();
+  const players = lobby.players || {};
+
+  // Rejoining under the same name picks your score back up.
+  const existing = Object.entries(players).find(
+    ([, p]) => p.name.toLowerCase() === name.toLowerCase()
+  );
+
+  me.code = code;
+  me.name = name;
+
+  if (existing) {
+    me.pid = existing[0];
+    me.isAdmin = !!existing[1].isAdmin;
+  } else {
+    if (lobby.status !== "lobby") return renderJoin("That game has already started.");
+    me.pid = makeId();
+    me.isAdmin = Object.keys(players).length === 0;
+    await set(lobbyRef("players", me.pid), {
+      name, score: 0, isAdmin: me.isAdmin, joinedAt: now()
+    });
+  }
+
+  onDisconnect(lobbyRef("players", me.pid)).remove();
+  barRight.textContent = name;
+  watchLobby();
+}
+
+function watchLobby() {
+  onValue(lobbyRef(), (snap) => {
+    const lobby = snap.val();
+    if (!lobby) return renderJoin("The TV closed that lobby.");
+
+    const changed = lobby.status !== lastStatus || lobby.qIndex !== lastIndex;
+    lastStatus = lobby.status;
+    lastIndex  = lobby.qIndex;
+    if (!changed) return;
+
+    if (lobby.status === "lobby")    return renderWaiting();
+    if (lobby.status === "question") return renderPad(lobby.qIndex);
+    if (lobby.status === "reveal")   return renderVerdict(lobby.correct);
+    if (lobby.status === "scores")   return renderBetween(lobby);
+    if (lobby.status === "over")     return renderOver(lobby);
+  });
+}
+
+function renderWaiting() {
+  barLeft.textContent = "In the lobby";
+  stage.innerHTML = me.isAdmin
+    ? `<h1 class="phone__title">You're up first</h1>
+       <p class="phone__note">You start the game when everyone has joined.</p>
+       <button class="btn" id="start">Start the game</button>`
+    : `<h1 class="phone__title">You're in</h1>
+       <p class="phone__note">Waiting for the first player to start.</p>`;
+  const btn = document.getElementById("start");
+  if (btn) btn.onclick = () => update(lobbyRef("control"), { start: true });
+}
+
+function renderPad(qIndex) {
+  picked = null;
+  barLeft.textContent = `Question ${qIndex + 1}`;
+  stage.innerHTML = `
+    <p class="phone__note">Answer is on the TV. Tap its number.</p>
+    <div class="pad">
+      ${[1, 2, 3, 4].map(n => `
+        <button class="plate plate--${n}" data-i="${n - 1}" aria-label="Answer ${n}">
+          <span class="numeral">${n}</span>
+        </button>`).join("")}
+    </div>`;
+
+  stage.querySelectorAll(".pad .plate").forEach((btn) => {
+    btn.onclick = async () => {
+      if (picked !== null) return;
+      picked = +btn.dataset.i;
+      btn.classList.add("is-picked");
+      stage.querySelectorAll(".pad .plate").forEach((other) => {
+        if (other !== btn) other.classList.add("is-dimmed");
+      });
+      await set(lobbyRef("answers", String(qIndex), me.pid), {
+        choice: picked, at: now()
+      });
+    };
+  });
+}
+
+function renderVerdict(correct) {
+  barLeft.textContent = "";
+  if (picked === null) {
+    stage.innerHTML = `<p class="verdict">Too slow</p>
+      <p class="phone__note">Answer ${correct + 1} was right.</p>`;
+    return;
+  }
+  const right = picked === correct;
+  stage.innerHTML = `
+    <p class="verdict ${right ? "verdict--right" : "verdict--wrong"}">
+      ${right ? "Correct" : "Wrong"}</p>
+    <p class="phone__note">${right ? "A point to you." : `Answer ${correct + 1} was right.`}</p>`;
+}
+
+function renderBetween(lobby) {
+  barLeft.textContent = "Scores";
+  const mine = lobby.players?.[me.pid]?.score ?? 0;
+  stage.innerHTML = `
+    <p class="eyebrow">Your score</p>
+    <p class="phone__title" style="font-size:clamp(56px,22vw,110px)">${mine}</p>
+    <p class="phone__note">Scores are on the TV. Next question shortly.</p>`;
+}
+
+function renderOver(lobby) {
+  barLeft.textContent = "Game over";
+  const rows = Object.values(lobby.players || {})
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+  const place = rows.findIndex(p => p.name === me.name) + 1;
+  const mine = lobby.players?.[me.pid]?.score ?? 0;
+  stage.innerHTML = `
+    <p class="eyebrow">You finished</p>
+    <p class="phone__title">${ordinal(place)}</p>
+    <p class="phone__note">${mine} point${mine === 1 ? "" : "s"}. Stay here — the TV can start another game.</p>`;
+}
+
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "lobbies": {
+      "$code": {
+        ".read": "$code.length === 4",
+        ".write": "$code.length === 4",
+        ".validate": "newData.hasChildren(['status'])",
+        "players": {
+          "$pid": {
+            "name":  { ".validate": "newData.isString() && newData.val().length <= 14" },
+            "score": { ".validate": "newData.isNumber()" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,794 @@
+[
+  {
+    "category": "Art and Literature",
+    "difficulty": "easy",
+    "question": "Who painted the Mona Lisa?",
+    "correct_answer": "Leonardo da Vinci",
+    "incorrect_answers": [
+      "Michelangelo",
+      "Raphael",
+      "Sandro Botticelli"
+    ]
+  },
+  {
+    "category": "Art and Literature",
+    "difficulty": "hard",
+    "question": "Who wrote the poem Ithaka?",
+    "correct_answer": "Constantine P. Cavafy",
+    "incorrect_answers": [
+      "Odysseas Elytis",
+      "George Seferis",
+      "Yannis Ritsos"
+    ]
+  },
+  {
+    "category": "Art and Literature",
+    "difficulty": "medium",
+    "question": "Who wrote the novel One Hundred Years of Solitude?",
+    "correct_answer": "Gabriel Garcia Marquez",
+    "incorrect_answers": [
+      "Mario Vargas Llosa",
+      "Jorge Luis Borges",
+      "Isabel Allende"
+    ]
+  },
+  {
+    "category": "Art and Literature",
+    "difficulty": "medium",
+    "question": "In which city is the Rijksmuseum?",
+    "correct_answer": "Amsterdam",
+    "incorrect_answers": [
+      "The Hague",
+      "Rotterdam",
+      "Utrecht"
+    ]
+  },
+  {
+    "category": "Entertainment: Film",
+    "difficulty": "easy",
+    "question": "Who directed the 1975 film \"Jaws\"?",
+    "correct_answer": "Steven Spielberg",
+    "incorrect_answers": [
+      "Martin Scorsese",
+      "Francis Ford Coppola",
+      "George Lucas"
+    ]
+  },
+  {
+    "category": "Entertainment: Film",
+    "difficulty": "easy",
+    "question": "In \"The Matrix\", which colour pill does Neo swallow?",
+    "correct_answer": "Red",
+    "incorrect_answers": [
+      "Blue",
+      "Green",
+      "White"
+    ]
+  },
+  {
+    "category": "Entertainment: Film",
+    "difficulty": "easy",
+    "question": "Which studio made \"Toy Story\"?",
+    "correct_answer": "Pixar",
+    "incorrect_answers": [
+      "DreamWorks",
+      "Illumination",
+      "Blue Sky"
+    ]
+  },
+  {
+    "category": "Entertainment: Film",
+    "difficulty": "medium",
+    "question": "Which film won the Academy Award for Best Picture for 1994?",
+    "correct_answer": "Forrest Gump",
+    "incorrect_answers": [
+      "Pulp Fiction",
+      "The Shawshank Redemption",
+      "Four Weddings and a Funeral"
+    ]
+  },
+  {
+    "category": "Entertainment: Music",
+    "difficulty": "easy",
+    "question": "Which instrument has 88 keys?",
+    "correct_answer": "The piano",
+    "incorrect_answers": [
+      "The organ",
+      "The accordion",
+      "The harpsichord"
+    ]
+  },
+  {
+    "category": "Entertainment: Music",
+    "difficulty": "easy",
+    "question": "Which band released \"Bohemian Rhapsody\"?",
+    "correct_answer": "Queen",
+    "incorrect_answers": [
+      "The Rolling Stones",
+      "Led Zeppelin",
+      "The Who"
+    ]
+  },
+  {
+    "category": "Entertainment: Music",
+    "difficulty": "medium",
+    "question": "Which composer wrote the Ninth Symphony that ends with the \"Ode to Joy\"?",
+    "correct_answer": "Ludwig van Beethoven",
+    "incorrect_answers": [
+      "Wolfgang Amadeus Mozart",
+      "Johann Sebastian Bach",
+      "Johannes Brahms"
+    ]
+  },
+  {
+    "category": "Entertainment: Music",
+    "difficulty": "medium",
+    "question": "How many lines make up a musical staff?",
+    "correct_answer": "5",
+    "incorrect_answers": [
+      "4",
+      "6",
+      "7"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "How many strings does a standard guitar have?",
+    "correct_answer": "Six",
+    "incorrect_answers": [
+      "Four",
+      "Seven",
+      "Twelve"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "Mixing blue and yellow paint gives you which colour?",
+    "correct_answer": "Green",
+    "incorrect_answers": [
+      "Orange",
+      "Purple",
+      "Brown"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "How many continents are there?",
+    "correct_answer": "7",
+    "incorrect_answers": [
+      "5",
+      "6",
+      "8"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "What is the currency of Japan?",
+    "correct_answer": "The yen",
+    "incorrect_answers": [
+      "The won",
+      "The yuan",
+      "The ringgit"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "How many degrees are there in a right angle?",
+    "correct_answer": "90",
+    "incorrect_answers": [
+      "45",
+      "180",
+      "60"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "How many colours are traditionally listed in a rainbow?",
+    "correct_answer": "7",
+    "incorrect_answers": [
+      "5",
+      "6",
+      "9"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "easy",
+    "question": "What does \"www\" stand for in a web address?",
+    "correct_answer": "World Wide Web",
+    "incorrect_answers": [
+      "World Web Wide",
+      "Wide World Web",
+      "Web World Wide"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "hard",
+    "question": "What is the SI unit of electrical capacitance?",
+    "correct_answer": "The farad",
+    "incorrect_answers": [
+      "The henry",
+      "The siemens",
+      "The tesla"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "hard",
+    "question": "What is the only letter that does not appear in any US state name?",
+    "correct_answer": "Q",
+    "incorrect_answers": [
+      "X",
+      "Z",
+      "J"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "medium",
+    "question": "What does HTTP stand for?",
+    "correct_answer": "Hypertext Transfer Protocol",
+    "incorrect_answers": [
+      "High Transfer Text Protocol",
+      "Hypertext Transmission Process",
+      "Home Terminal Transfer Protocol"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "medium",
+    "question": "Which language has the most native speakers worldwide?",
+    "correct_answer": "Mandarin Chinese",
+    "incorrect_answers": [
+      "English",
+      "Spanish",
+      "Hindi"
+    ]
+  },
+  {
+    "category": "General Knowledge",
+    "difficulty": "medium",
+    "question": "How many squares are there on a chessboard?",
+    "correct_answer": "64",
+    "incorrect_answers": [
+      "81",
+      "56",
+      "100"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "easy",
+    "question": "What is the capital of Australia?",
+    "correct_answer": "Canberra",
+    "incorrect_answers": [
+      "Sydney",
+      "Melbourne",
+      "Perth"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "easy",
+    "question": "Which is the largest ocean on Earth?",
+    "correct_answer": "The Pacific",
+    "incorrect_answers": [
+      "The Atlantic",
+      "The Indian",
+      "The Southern"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "easy",
+    "question": "Which is the longest river in Africa?",
+    "correct_answer": "The Nile",
+    "incorrect_answers": [
+      "The Congo",
+      "The Niger",
+      "The Zambezi"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "easy",
+    "question": "Which sea lies between Greece and Turkey?",
+    "correct_answer": "The Aegean Sea",
+    "incorrect_answers": [
+      "The Ionian Sea",
+      "The Adriatic Sea",
+      "The Black Sea"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "easy",
+    "question": "What is the capital of Canada?",
+    "correct_answer": "Ottawa",
+    "incorrect_answers": [
+      "Toronto",
+      "Vancouver",
+      "Montreal"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "hard",
+    "question": "Which is the smallest country in Africa by land area?",
+    "correct_answer": "Seychelles",
+    "incorrect_answers": [
+      "The Gambia",
+      "Comoros",
+      "Sao Tome and Principe"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "hard",
+    "question": "Which strait separates Spain from Morocco?",
+    "correct_answer": "The Strait of Gibraltar",
+    "incorrect_answers": [
+      "The Bosphorus",
+      "The Dardanelles",
+      "The Strait of Hormuz"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "hard",
+    "question": "Which country has the longest coastline in the world?",
+    "correct_answer": "Canada",
+    "incorrect_answers": [
+      "Russia",
+      "Australia",
+      "Indonesia"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "medium",
+    "question": "Lake Baikal, the world's deepest lake, lies in which country?",
+    "correct_answer": "Russia",
+    "incorrect_answers": [
+      "Mongolia",
+      "Kazakhstan",
+      "China"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "medium",
+    "question": "Mount Everest sits on the border of Nepal and which other country?",
+    "correct_answer": "China",
+    "incorrect_answers": [
+      "India",
+      "Bhutan",
+      "Pakistan"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "medium",
+    "question": "Which African country was formerly known as Abyssinia?",
+    "correct_answer": "Ethiopia",
+    "incorrect_answers": [
+      "Sudan",
+      "Somalia",
+      "Eritrea"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "medium",
+    "question": "Lake Baikal, the world's deepest lake, is in which country?",
+    "correct_answer": "Russia",
+    "incorrect_answers": [
+      "Mongolia",
+      "Kazakhstan",
+      "China"
+    ]
+  },
+  {
+    "category": "Geography",
+    "difficulty": "medium",
+    "question": "What is the smallest country in the world by area?",
+    "correct_answer": "Vatican City",
+    "incorrect_answers": [
+      "Monaco",
+      "Nauru",
+      "San Marino"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "In which year did the Second World War end?",
+    "correct_answer": "1945",
+    "incorrect_answers": [
+      "1943",
+      "1944",
+      "1946"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "Who was the first person to walk on the Moon?",
+    "correct_answer": "Neil Armstrong",
+    "incorrect_answers": [
+      "Buzz Aldrin",
+      "Yuri Gagarin",
+      "Michael Collins"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "Who was the first President of the United States?",
+    "correct_answer": "George Washington",
+    "incorrect_answers": [
+      "Thomas Jefferson",
+      "John Adams",
+      "Abraham Lincoln"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "In which year did the Titanic sink?",
+    "correct_answer": "1912",
+    "incorrect_answers": [
+      "1905",
+      "1918",
+      "1923"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "Which ancient city was buried by the eruption of Vesuvius in AD 79?",
+    "correct_answer": "Pompeii",
+    "incorrect_answers": [
+      "Ephesus",
+      "Carthage",
+      "Troy"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "easy",
+    "question": "The Hundred Years' War was fought mainly between England and which country?",
+    "correct_answer": "France",
+    "incorrect_answers": [
+      "Spain",
+      "The Netherlands",
+      "Scotland"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "hard",
+    "question": "The Peace of Westphalia, ending the Thirty Years' War, was signed in which year?",
+    "correct_answer": "1648",
+    "incorrect_answers": [
+      "1618",
+      "1659",
+      "1701"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "hard",
+    "question": "In which year was the Battle of Marathon fought?",
+    "correct_answer": "490 BC",
+    "incorrect_answers": [
+      "480 BC",
+      "431 BC",
+      "404 BC"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "hard",
+    "question": "Constantinople fell to the Ottomans in which year?",
+    "correct_answer": "1453",
+    "incorrect_answers": [
+      "1204",
+      "1492",
+      "1389"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "medium",
+    "question": "In which year did the Berlin Wall fall?",
+    "correct_answer": "1989",
+    "incorrect_answers": [
+      "1987",
+      "1990",
+      "1991"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "medium",
+    "question": "Which empire was ruled by Suleiman the Magnificent?",
+    "correct_answer": "The Ottoman Empire",
+    "incorrect_answers": [
+      "The Byzantine Empire",
+      "The Persian Empire",
+      "The Mughal Empire"
+    ]
+  },
+  {
+    "category": "History",
+    "difficulty": "medium",
+    "question": "Who was the first woman to be awarded a Nobel Prize?",
+    "correct_answer": "Marie Curie",
+    "incorrect_answers": [
+      "Rosalind Franklin",
+      "Ada Lovelace",
+      "Dorothy Hodgkin"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "What is the chemical symbol for potassium?",
+    "correct_answer": "K",
+    "incorrect_answers": [
+      "P",
+      "Po",
+      "Pt"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "Which gas makes up roughly 78 percent of Earth's atmosphere?",
+    "correct_answer": "Nitrogen",
+    "incorrect_answers": [
+      "Oxygen",
+      "Argon",
+      "Carbon dioxide"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "What is the chemical symbol for gold?",
+    "correct_answer": "Au",
+    "incorrect_answers": [
+      "Ag",
+      "Go",
+      "Gd"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "Which planet is known as the Red Planet?",
+    "correct_answer": "Mars",
+    "incorrect_answers": [
+      "Venus",
+      "Jupiter",
+      "Mercury"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "What is the hardest naturally occurring substance?",
+    "correct_answer": "Diamond",
+    "incorrect_answers": [
+      "Quartz",
+      "Titanium",
+      "Graphite"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "Which gas do plants absorb from the air for photosynthesis?",
+    "correct_answer": "Carbon dioxide",
+    "incorrect_answers": [
+      "Oxygen",
+      "Nitrogen",
+      "Hydrogen"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "What is the largest organ of the human body?",
+    "correct_answer": "The skin",
+    "incorrect_answers": [
+      "The liver",
+      "The lungs",
+      "The intestine"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "easy",
+    "question": "Which element has atomic number 1?",
+    "correct_answer": "Hydrogen",
+    "incorrect_answers": [
+      "Helium",
+      "Oxygen",
+      "Carbon"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "hard",
+    "question": "Who first proposed the theory of continental drift?",
+    "correct_answer": "Alfred Wegener",
+    "incorrect_answers": [
+      "Charles Lyell",
+      "James Hutton",
+      "Harry Hess"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "hard",
+    "question": "Which blood vessel carries deoxygenated blood from the heart to the lungs?",
+    "correct_answer": "The pulmonary artery",
+    "incorrect_answers": [
+      "The pulmonary vein",
+      "The aorta",
+      "The vena cava"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "medium",
+    "question": "How many bones are there in the adult human body?",
+    "correct_answer": "206",
+    "incorrect_answers": [
+      "186",
+      "226",
+      "246"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "medium",
+    "question": "Roughly what is the speed of light in a vacuum?",
+    "correct_answer": "300,000 km per second",
+    "incorrect_answers": [
+      "150,000 km per second",
+      "30,000 km per second",
+      "3,000,000 km per second"
+    ]
+  },
+  {
+    "category": "Science and Nature",
+    "difficulty": "medium",
+    "question": "What does DNA stand for?",
+    "correct_answer": "Deoxyribonucleic acid",
+    "incorrect_answers": [
+      "Dioxyribonucleic acid",
+      "Deoxyribose nucleic amine",
+      "Diribonucleic acid"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "easy",
+    "question": "How many players does each side field in association football?",
+    "correct_answer": "Eleven",
+    "incorrect_answers": [
+      "Nine",
+      "Ten",
+      "Twelve"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "easy",
+    "question": "How often are the Summer Olympic Games held?",
+    "correct_answer": "Every four years",
+    "incorrect_answers": [
+      "Every two years",
+      "Every three years",
+      "Every five years"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "easy",
+    "question": "How many players from each team are on the pitch in a football match?",
+    "correct_answer": "11",
+    "incorrect_answers": [
+      "10",
+      "12",
+      "9"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "easy",
+    "question": "In which sport would you perform a slam dunk?",
+    "correct_answer": "Basketball",
+    "incorrect_answers": [
+      "Volleyball",
+      "Handball",
+      "Water polo"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "easy",
+    "question": "In tennis, what word is used for a score of zero?",
+    "correct_answer": "Love",
+    "incorrect_answers": [
+      "Nil",
+      "Duck",
+      "Blank"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "In which event would an athlete perform a Fosbury flop?",
+    "correct_answer": "The high jump",
+    "incorrect_answers": [
+      "The pole vault",
+      "The long jump",
+      "Gymnastics"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "How long is an Olympic swimming pool?",
+    "correct_answer": "50 metres",
+    "incorrect_answers": [
+      "25 metres",
+      "100 metres",
+      "75 metres"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "medium",
+    "question": "Which country hosted the first modern Olympic Games?",
+    "correct_answer": "Greece",
+    "incorrect_answers": [
+      "France",
+      "The United Kingdom",
+      "The United States"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "medium",
+    "question": "Which country won the 2004 UEFA European Championship?",
+    "correct_answer": "Greece",
+    "incorrect_answers": [
+      "Portugal",
+      "The Czech Republic",
+      "France"
+    ]
+  },
+  {
+    "category": "Sport",
+    "difficulty": "medium",
+    "question": "How many points is a touchdown worth in American football?",
+    "correct_answer": "6",
+    "incorrect_answers": [
+      "3",
+      "7",
+      "5"
+    ]
+  }
+]

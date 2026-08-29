@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivial Night — screen</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="tv">
+  <div class="tv__bar">
+    <span class="eyebrow" id="bar-left">Trivial Night</span>
+    <span class="eyebrow" id="bar-right"></span>
+  </div>
+
+  <div class="timer hidden" id="timer"><div class="timer__fill" id="timer-fill"></div></div>
+
+  <main class="tv__stage" id="stage"></main>
+</div>
+
+<script type="module">
+import {
+  db, ref, get, set, update, remove, onValue,
+  now, makeCode, shuffle, decode
+} from "./firebase.js";
+
+const stage    = document.getElementById("stage");
+const barLeft  = document.getElementById("bar-left");
+const barRight = document.getElementById("bar-right");
+const timerEl  = document.getElementById("timer");
+const timerFill= document.getElementById("timer-fill");
+
+const state = {
+  bank: [],
+  code: null,
+  round: [],        // questions for this game, answers pre-shuffled
+  index: -1,
+  players: {},      // pid -> {name, score, isAdmin}
+  seconds: 20,
+  unsubs: [],
+  ticker: null,
+  closing: false
+};
+
+const lobbyRef = (...path) => ref(db, ["lobbies", state.code, ...path].join("/"));
+
+// ---------- boot ----------
+
+try {
+  const res = await fetch("./questions.en.json");
+  if (!res.ok) throw new Error(res.status);
+  state.bank = await res.json();
+} catch (err) {
+  stage.innerHTML = `<h1>No question bank</h1>
+    <p class="phone__note">questions.en.json could not be loaded. Run
+    <code>node tools/fetch-opentdb.mjs</code> to build it, or check the file is
+    beside this page.</p>`;
+  throw err;
+}
+
+renderSetup();
+
+// ---------- setup ----------
+
+function renderSetup() {
+  const categories = [...new Set(state.bank.map(q => q.category))].sort();
+  stage.innerHTML = `
+    <h1>Trivial Night</h1>
+    <div class="setup">
+      <label>Category
+        <select id="f-cat">
+          <option value="">Everything</option>
+          ${categories.map(c => `<option>${c}</option>`).join("")}
+        </select>
+      </label>
+      <label>Difficulty
+        <select id="f-diff">
+          <option value="">Mixed</option>
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+      <label>Seconds per question
+        <input id="f-secs" type="number" min="5" max="90" value="20">
+      </label>
+      <label>Questions in the game
+        <input id="f-count" type="number" min="1" max="50" value="12">
+      </label>
+      <p class="error" id="setup-error"></p>
+      <div><button class="btn" id="go">Open the lobby</button></div>
+    </div>`;
+
+  document.getElementById("go").onclick = openLobby;
+}
+
+async function openLobby() {
+  const cat   = document.getElementById("f-cat").value;
+  const diff  = document.getElementById("f-diff").value;
+  const secs  = Math.min(90, Math.max(5, +document.getElementById("f-secs").value || 20));
+  const count = Math.min(50, Math.max(1, +document.getElementById("f-count").value || 12));
+  const err   = document.getElementById("setup-error");
+
+  let pool = state.bank;
+  if (cat)  pool = pool.filter(q => q.category === cat);
+  if (diff) pool = pool.filter(q => q.difficulty === diff);
+
+  if (pool.length < count) {
+    err.textContent = `Only ${pool.length} questions match that. Lower the count or widen the filters.`;
+    return;
+  }
+
+  state.seconds = secs;
+  state.round = shuffle(pool).slice(0, count).map(q => {
+    const correct = decode(q.correct_answer);
+    const answers = shuffle([correct, ...q.incorrect_answers.map(decode)]);
+    return {
+      category: q.category,
+      question: decode(q.question),
+      answers,
+      correct: answers.indexOf(correct)
+    };
+  });
+
+  // Claim a free code.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = makeCode();
+    const snap = await get(ref(db, `lobbies/${code}`));
+    if (snap.exists()) continue;
+    state.code = code;
+    break;
+  }
+  if (!state.code) { err.textContent = "Could not claim a lobby code. Try again."; return; }
+
+  await set(lobbyRef(), {
+    status: "lobby",
+    qIndex: -1,
+    seconds: secs,
+    total: count,
+    endsAt: 0,
+    openedAt: now()
+  });
+
+  watchPlayers();
+  watchStartRequest();
+  renderLobby();
+}
+
+// ---------- lobby ----------
+
+function joinUrl() {
+  return new URL("play.html", location.href).href;
+}
+
+function renderLobby() {
+  barLeft.textContent = "Waiting for players";
+  barRight.textContent = "";
+  timerEl.classList.add("hidden");
+
+  stage.innerHTML = `
+    <div>
+      <p class="eyebrow">Join at</p>
+      <p class="joinurl">${joinUrl().replace(/^https?:\/\//, "")}</p>
+    </div>
+    <div>
+      <p class="eyebrow">Lobby code</p>
+      <p class="code">${state.code}</p>
+    </div>
+    <div class="roster" id="roster"></div>
+    <p class="phone__note" id="lobby-hint">The first player to join starts the game.</p>
+    <div><button class="btn btn--ghost" id="host-start">Start from here instead</button></div>`;
+
+  document.getElementById("host-start").onclick = startGame;
+  paintRoster();
+}
+
+function paintRoster() {
+  const el = document.getElementById("roster");
+  if (!el) return;
+  const list = Object.entries(state.players)
+    .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+  el.innerHTML = list.length
+    ? list.map(([, p]) => `<span class="roster__chip" data-admin="${p.isAdmin ? 1 : 0}">${escapeHtml(p.name)}</span>`).join("")
+    : `<span class="phone__note">Nobody yet.</span>`;
+}
+
+function watchPlayers() {
+  state.unsubs.push(onValue(lobbyRef("players"), (snap) => {
+    state.players = snap.val() || {};
+    paintRoster();
+    if (state.index >= 0) maybeCloseEarly();
+    const board = document.getElementById("live-board");
+    if (board) paintBoard(board);
+  }));
+}
+
+function watchStartRequest() {
+  state.unsubs.push(onValue(lobbyRef("control/start"), (snap) => {
+    if (snap.val() === true && state.index === -1) startGame();
+  }));
+}
+
+// ---------- the round ----------
+
+function startGame() {
+  if (state.index !== -1) return;
+  if (!Object.keys(state.players).length) return;
+  nextQuestion();
+}
+
+async function nextQuestion() {
+  state.index += 1;
+  state.closing = false;
+
+  if (state.index >= state.round.length) return finish();
+
+  await update(lobbyRef(), {
+    status: "question",
+    qIndex: state.index,
+    endsAt: now() + state.seconds * 1000,
+    "control/start": null
+  });
+
+  const q = state.round[state.index];
+  barLeft.textContent = q.category;
+  barRight.innerHTML = `<span class="tally" id="tally">0 / ${Object.keys(state.players).length}</span>`;
+
+  stage.innerHTML = `
+    <p class="eyebrow">Question ${state.index + 1} of ${state.round.length}</p>
+    <h2 class="question">${escapeHtml(q.question)}</h2>
+    <div class="answers">
+      ${q.answers.map((a, i) => `
+        <div class="plate plate--${i + 1}" data-i="${i}">
+          <span class="numeral">${i + 1}</span>
+          <span>${escapeHtml(a)}</span>
+        </div>`).join("")}
+    </div>`;
+
+  runTimer(state.seconds * 1000);
+  watchAnswers();
+}
+
+function runTimer(ms) {
+  const startedAt = now();
+  timerEl.classList.remove("hidden");
+  clearInterval(state.ticker);
+  state.ticker = setInterval(() => {
+    const left = Math.max(0, 1 - (now() - startedAt) / ms);
+    timerFill.style.transform = `scaleX(${left})`;
+    if (left <= 0) closeQuestion();
+  }, 80);
+}
+
+let answersUnsub = null;
+function watchAnswers() {
+  if (answersUnsub) answersUnsub();
+  answersUnsub = onValue(lobbyRef("answers", String(state.index)), (snap) => {
+    const answered = Object.keys(snap.val() || {}).length;
+    const tally = document.getElementById("tally");
+    if (tally) tally.textContent = `${answered} / ${Object.keys(state.players).length}`;
+    maybeCloseEarly(answered);
+  });
+}
+
+function maybeCloseEarly(answered) {
+  const playerCount = Object.keys(state.players).length;
+  if (!playerCount) return;
+  if (answered === undefined) return;
+  if (answered >= playerCount) closeQuestion();
+}
+
+// Whichever comes first: everyone in, or the clock runs out.
+async function closeQuestion() {
+  if (state.closing || state.index < 0) return;
+  state.closing = true;
+  clearInterval(state.ticker);
+  if (answersUnsub) { answersUnsub(); answersUnsub = null; }
+  timerEl.classList.add("hidden");
+
+  const q = state.round[state.index];
+  const snap = await get(lobbyRef("answers", String(state.index)));
+  const given = snap.val() || {};
+
+  const updates = {};
+  const gained = new Set();
+  for (const [pid, entry] of Object.entries(given)) {
+    if (!state.players[pid]) continue;
+    if (entry.choice === q.correct) {
+      updates[`players/${pid}/score`] = (state.players[pid].score || 0) + 1;
+      gained.add(pid);
+    }
+  }
+  if (Object.keys(updates).length) await update(lobbyRef(), updates);
+  await update(lobbyRef(), { status: "reveal", correct: q.correct });
+
+  revealAnswer(q, gained);
+}
+
+function revealAnswer(q, gained) {
+  barRight.textContent = "";
+  document.querySelectorAll(".plate").forEach((el) => {
+    const i = +el.dataset.i;
+    if (i === q.correct) el.classList.add("is-correct");
+    else el.classList.add("is-dimmed");
+  });
+
+  const names = [...gained].map(pid => state.players[pid]?.name).filter(Boolean);
+  const line = document.createElement("p");
+  line.className = "phone__note";
+  line.style.fontSize = "clamp(16px,1.6vw,30px)";
+  line.textContent = names.length
+    ? `Point to ${names.join(", ")}.`
+    : "Nobody got that one.";
+  stage.appendChild(line);
+
+  setTimeout(showScores, 2600);
+}
+
+function showScores() {
+  const last = state.index >= state.round.length - 1;
+  barLeft.textContent = last ? "Final scores" : "Scores";
+  stage.innerHTML = `<div class="board" id="live-board"></div>
+    <div><button class="btn" id="advance">${last ? "Play again" : "Next question"}</button></div>`;
+  paintBoard(document.getElementById("live-board"));
+  update(lobbyRef(), { status: last ? "over" : "scores" });
+
+  const btn = document.getElementById("advance");
+  btn.onclick = last ? restart : nextQuestion;
+
+  if (!last) {
+    let left = 6;
+    btn.textContent = `Next question (${left})`;
+    const t = setInterval(() => {
+      left -= 1;
+      if (!document.getElementById("advance")) return clearInterval(t);
+      if (left <= 0) { clearInterval(t); nextQuestion(); }
+      else btn.textContent = `Next question (${left})`;
+    }, 1000);
+  }
+}
+
+function paintBoard(el) {
+  if (!el) return;
+  const rows = Object.entries(state.players)
+    .sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+  el.innerHTML = rows.map(([, p], i) => `
+    <div class="board__row">
+      <span class="board__rank">${i + 1}</span>
+      <span>${escapeHtml(p.name)}</span>
+      <span class="board__score">${p.score || 0}</span>
+    </div>`).join("");
+}
+
+function finish() {
+  showScores();
+}
+
+async function restart() {
+  await remove(lobbyRef("answers"));
+  const resets = {};
+  for (const pid of Object.keys(state.players)) resets[`players/${pid}/score`] = 0;
+  if (Object.keys(resets).length) await update(lobbyRef(), resets);
+  state.index = -1;
+  state.round = shuffle(state.round);
+  await update(lobbyRef(), { status: "lobby", qIndex: -1, endsAt: 0, correct: null });
+  renderLobby();
+}
+
+// Drop the lobby when the TV closes, so codes do not pile up.
+window.addEventListener("pagehide", () => {
+  if (state.code) remove(lobbyRef());
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+</script>
+</body>
+</html>
