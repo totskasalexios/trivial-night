@@ -219,6 +219,7 @@ async function nextQuestion() {
     status: "question",
     qIndex: state.index,
     endsAt: now() + state.seconds * 1000,
+    correct: null,
     "control/start": null
   });
 
