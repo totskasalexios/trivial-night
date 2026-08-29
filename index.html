@@ -40,7 +40,9 @@ const state = {
   seconds: 20,
   unsubs: [],
   ticker: null,
-  closing: false
+  closing: false,
+  answered: 0,      // answers in for the current question
+  hadPlayers: false // true once anyone has joined this lobby
 };
 
 const lobbyRef = (...path) => ref(db, ["lobbies", state.code, ...path].join("/"));
@@ -123,11 +125,17 @@ async function openLobby() {
     };
   });
 
-  // Claim a free code.
+  // Claim a free code. A lobby older than six hours belongs to a TV that
+  // closed without cleaning up, so its code is fair game.
+  const STALE_MS = 6 * 60 * 60 * 1000;
   for (let attempt = 0; attempt < 8; attempt++) {
     const code = makeCode();
     const snap = await get(ref(db, `lobbies/${code}`));
-    if (snap.exists()) continue;
+    if (snap.exists()) {
+      const openedAt = snap.val()?.openedAt || 0;
+      if (now() - openedAt < STALE_MS) continue;
+      await remove(ref(db, `lobbies/${code}`));
+    }
     state.code = code;
     break;
   }
@@ -188,11 +196,35 @@ function paintRoster() {
 function watchPlayers() {
   state.unsubs.push(onValue(lobbyRef("players"), (snap) => {
     state.players = snap.val() || {};
+    const count = Object.keys(state.players).length;
+
+    if (count) state.hadPlayers = true;
+    else if (state.hadPlayers) return abandonLobby();
+
     paintRoster();
-    if (state.index >= 0) maybeCloseEarly();
+    if (state.index >= 0) maybeCloseEarly(state.answered);
     const board = document.getElementById("live-board");
     if (board) paintBoard(board);
   }));
+}
+
+// Everyone has left. Drop the lobby so the code is free again and go back
+// to the setup screen, ready for a fresh game.
+async function abandonLobby() {
+  clearInterval(state.ticker);
+  if (answersUnsub) { answersUnsub(); answersUnsub = null; }
+  state.unsubs.forEach(off => off());
+  state.unsubs = [];
+  const dead = state.code;
+  state.code = null;
+  state.index = -1;
+  state.players = {};
+  state.hadPlayers = false;
+  state.answered = 0;
+  state.closing = false;
+  timerEl.classList.add("hidden");
+  if (dead) await remove(ref(db, `lobbies/${dead}`));
+  renderSetup();
 }
 
 function watchStartRequest() {
@@ -212,6 +244,7 @@ function startGame() {
 async function nextQuestion() {
   state.index += 1;
   state.closing = false;
+  state.answered = 0;
 
   if (state.index >= state.round.length) return finish();
 
@@ -258,6 +291,7 @@ function watchAnswers() {
   if (answersUnsub) answersUnsub();
   answersUnsub = onValue(lobbyRef("answers", String(state.index)), (snap) => {
     const answered = Object.keys(snap.val() || {}).length;
+    state.answered = answered;
     const tally = document.getElementById("tally");
     if (tally) tally.textContent = `${answered} / ${Object.keys(state.players).length}`;
     maybeCloseEarly(answered);
