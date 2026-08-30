@@ -50,6 +50,7 @@ const state = {
   game: "everyone", // everyone | buzzer
   locked: new Set(),// players out of the current buzzer question
   qLeft: 0,         // question time still to run when someone buzzed
+  seq: 0,           // guards the staged reveal against a round being dropped
   pool: [],         // questions matching the filters
   used: new Set(),  // indices already asked
   current: null,    // the question on screen
@@ -372,6 +373,7 @@ async function abandonLobby() {
   state.answered = 0;
   state.closing = false;
   state.stage = "setup";
+  state.seq += 1;
   state.used = new Set();
   state.lastCat = null;
   state.current = null;
@@ -516,39 +518,71 @@ function watchPick(options) {
   });
 }
 
+// How long the question sits on screen alone, and the gap between answers.
+const READ_MS    = 5000;
+const STAGGER_MS = 550;
+
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
 async function askQuestion(category) {
   const q = takeQuestion(category);
   if (!q) return finish();
 
+  const token = ++state.seq;
   state.current = q;
   state.lastCat = q.category;
-  state.stage = "question";
+  state.stage = "reading";
   state.locked = new Set();
   state.qLeft = state.seconds * 1000;
 
+  // Nothing is answerable yet: the phones stay shut until the answers are up.
   await update(lobbyRef(), {
-    status: "question",
+    status: "reading",
     qIndex: state.index,
-    endsAt: state.seconds ? now() + state.seconds * 1000 : 0,
+    endsAt: 0,
     correct: null,
     pick: null,
     buzz: null,
     "control/start": null
   });
+  if (state.seq !== token) return;
 
   barLeft.textContent = q.category;
-  barRight.innerHTML = `<span class="tally" id="tally">0 / ${Object.keys(state.players).length}</span>`;
+  barRight.textContent = "";
+  timerEl.classList.add("hidden");
 
   stage.innerHTML = `
     <p class="eyebrow">Question ${state.index + 1} of ${state.count}</p>
+    <p class="qcat">${escapeHtml(q.category)}</p>
     <h2 class="question">${escapeHtml(q.question)}</h2>
-    <div class="answers">
-      ${q.answers.map((a, i) => `
-        <div class="plate plate--${i + 1}" data-i="${i}">
-          <span class="numeral">${i + 1}</span>
-          <span>${escapeHtml(a)}</span>
-        </div>`).join("")}
-    </div>`;
+    <div class="answers" id="answers"></div>`;
+
+  await wait(READ_MS);
+  if (state.seq !== token) return;
+
+  // Answers arrive one at a time so the room can read them.
+  const box = document.getElementById("answers");
+  for (let i = 0; i < q.answers.length; i++) {
+    if (state.seq !== token) return;
+    const el = document.createElement("div");
+    el.className = `plate plate--${i + 1} is-entering`;
+    el.dataset.i = i;
+    el.innerHTML = `<span class="numeral">${i + 1}</span><span>${escapeHtml(q.answers[i])}</span>`;
+    box.appendChild(el);
+    await wait(STAGGER_MS);
+  }
+  if (state.seq !== token) return;
+
+  state.stage = "question";
+  await update(lobbyRef(), {
+    status: "question",
+    endsAt: state.seconds ? now() + state.seconds * 1000 : 0
+  });
+  if (state.seq !== token) return;
+
+  barRight.innerHTML = state.game === "buzzer"
+    ? `<span class="tally">Buzzers open</span>`
+    : `<span class="tally" id="tally">0 / ${Object.keys(state.players).length}</span>`;
 
   runTimer(state.seconds * 1000);
   if (state.game === "buzzer") watchBuzzer();

@@ -113,6 +113,7 @@ function watchLobby() {
 
     if (lobby.status === "lobby")    return renderWaiting();
     if (lobby.status === "picking")  return renderPicker(lobby);
+    if (lobby.status === "reading")  return renderReading(lobby);
     if (lobby.status === "question")  return lobby.game === "buzzer"
       ? renderBuzzer(lobby) : renderPad(lobby.qIndex);
     if (lobby.status === "answering") return renderAnswering(lobby);
@@ -196,6 +197,14 @@ function renderPicker(lobby) {
       update(lobbyRef("control"), { pick: +btn.dataset.i });
     };
   });
+}
+
+function renderReading(lobby) {
+  picked = null;
+  barLeft.textContent = `Question ${lobby.qIndex + 1}`;
+  stage.innerHTML = `<h1 class="phone__title">Read the question</h1>
+    <p class="phone__note">The answers are coming up on the TV.
+    ${lobby.game === "buzzer" ? "The buzzer opens" : "Your buttons appear"} once they're all shown.</p>`;
 }
 
 function renderBuzzer(lobby) {
