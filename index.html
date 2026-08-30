@@ -88,16 +88,7 @@ function renderSetup() {
     <div class="setup">
       <h1>Trivial Night</h1>
 
-      <div class="setup__group">
-        <p class="eyebrow">Language</p>
-        <div class="bubbles bubbles--tight" id="g-lang">
-          <button class="bubble is-on" data-lang="en">English</button>
-          <button class="bubble is-soon" data-lang="el">Ελληνικά</button>
-        </div>
-        <p class="setup__note" id="lang-note"></p>
-      </div>
-
-      <div class="setup__group">
+      <div class="setup__group setup__group--wide">
         <p class="eyebrow">Categories</p>
         <div class="bubbles" id="g-cat">
           ${categories.map(c => `
@@ -108,6 +99,17 @@ function renderSetup() {
           <button class="bubble bubble--plain" id="cat-all">Select all</button>
           <button class="bubble bubble--plain" id="cat-none">Clear</button>
         </div>
+      </div>
+
+      <div class="setup__row">
+
+      <div class="setup__group">
+        <p class="eyebrow">Language</p>
+        <div class="bubbles bubbles--tight" id="g-lang">
+          <button class="bubble is-on" data-lang="en">English</button>
+          <button class="bubble is-soon" data-lang="el">Ελληνικά</button>
+        </div>
+        <p class="setup__note" id="lang-note"></p>
       </div>
 
       <div class="setup__group">
@@ -139,6 +141,8 @@ function renderSetup() {
           <button class="bubble" data-count="custom">Custom</button>
         </div>
         <input class="setup__custom hidden" id="count-custom" type="number" min="1" max="200" value="75">
+      </div>
+
       </div>
 
       <p class="error" id="setup-error"></p>

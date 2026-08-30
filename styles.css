@@ -222,21 +222,6 @@ button {
 .board__row[data-gained="1"] .board__score { color: var(--p3); }
 .board__row:first-child .board__score { color: var(--p2); }
 
-.setup {
-  display: grid;
-  gap: 18px;
-  max-width: 640px;
-  font-size: 17px;
-}
-.setup label { display: grid; gap: 6px; }
-.setup select, .setup input {
-  font: inherit;
-  padding: 0.7em 0.8em;
-  border-radius: 6px;
-  border: 2px solid var(--ink-3);
-  background: var(--ink-2);
-  color: var(--bone);
-}
 
 .btn {
   font-family: var(--display);
@@ -370,18 +355,31 @@ button {
 
 .setup {
   display: grid;
-  gap: clamp(18px, 2.6vh, 34px);
+  gap: clamp(14px, 2.2vh, 30px);
   justify-items: center;
+  align-content: center;
   text-align: center;
-  width: min(1500px, 92vw);
+  width: min(2200px, 95vw);
+  max-width: none;
   margin: 0 auto;
-  overflow-y: auto;
   padding-block: 4px;
 }
 
-.setup h1 { margin-bottom: 0.2em; }
+/* The title is smaller here than in play, so the controls all fit one screen. */
+.setup h1 { font-size: clamp(30px, 4.4vw, 84px); margin-bottom: 0.1em; }
 
-.setup__group { display: grid; gap: 0.7em; justify-items: center; width: 100%; }
+.setup__group { display: grid; gap: 0.55em; justify-items: center; }
+.setup__group--wide { width: 100%; }
+
+/* Language, difficulty, seconds and count sit side by side on a wide screen. */
+.setup__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: start;
+  gap: clamp(20px, 3vw, 64px);
+  width: 100%;
+}
 
 .bubbles {
   display: flex;
