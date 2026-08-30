@@ -52,6 +52,7 @@ const state = {
   sound: true,      // board audio on or off
   lang: "en",       // which question bank is loaded
   lastCount: 0,     // roster size, to spot an arrival
+  sweeper: null,    // interval that clears out players long gone
   locked: new Set(),// players out of the current buzzer question
   qLeft: 0,         // question time still to run when someone buzzed
   seq: 0,           // guards the staged reveal against a round being dropped
@@ -331,6 +332,7 @@ async function openLobby() {
 
   state.stage = "lobby";
   music("lobby");
+  startAwaySweep();
   watchPlayers();
   watchStartRequest();
   watchAdvance();
@@ -379,6 +381,11 @@ function paintRoster() {
     : `<span class="phone__note">Nobody yet.</span>`;
 }
 
+// Players with a closed tab are still in the game, but nothing waits on them.
+function activePlayers() {
+  return Object.entries(state.players).filter(([, p]) => !p.away);
+}
+
 function watchPlayers() {
   state.unsubs.push(onValue(lobbyRef("players"), (snap) => {
     state.players = snap.val() || {};
@@ -401,6 +408,7 @@ function watchPlayers() {
 // to the setup screen, ready for a fresh game.
 async function abandonLobby() {
   clearInterval(state.ticker);
+  clearInterval(state.sweeper);
   if (answersUnsub) { answersUnsub(); answersUnsub = null; }
   if (pickUnsub) { pickUnsub(); pickUnsub = null; }
   if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
@@ -630,7 +638,7 @@ async function askQuestion(category) {
 
   barRight.innerHTML = state.game === "buzzer"
     ? `<span class="tally">Buzzers open</span>`
-    : `<span class="tally" id="tally">0 / ${Object.keys(state.players).length}</span>`;
+    : `<span class="tally" id="tally">0 / ${activePlayers().length}</span>`;
 
   runTimer(state.seconds * 1000);
   if (state.game === "buzzer") watchBuzzer();
@@ -703,7 +711,7 @@ async function settleBuzz(pid, choice) {
   if (right) {
     if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
     await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
-    return revealAnswer(q, new Set([pid]));
+    return revealAnswer(q, new Set([pid]), { [pid]: { choice } });
   }
 
   state.locked.add(pid);
@@ -712,7 +720,7 @@ async function settleBuzz(pid, choice) {
   if (!stillIn.length || (state.seconds && state.qLeft <= 0)) {
     if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
     await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
-    return revealAnswer(q, new Set());
+    return revealAnswer(q, new Set(), { [pid]: { choice } });
   }
 
   state.stage = "question";
@@ -800,7 +808,7 @@ function watchAnswers() {
     heard = Math.max(heard, answered);
     state.answered = answered;
     const tally = document.getElementById("tally");
-    if (tally) tally.textContent = `${answered} / ${Object.keys(state.players).length}`;
+    if (tally) tally.textContent = `${answered} / ${activePlayers().length}`;
     maybeCloseEarly(answered);
   });
 }
@@ -808,7 +816,7 @@ function watchAnswers() {
 function maybeCloseEarly(answered) {
   if (state.stage === "paused") return;
   if (state.game === "buzzer") return;
-  const playerCount = Object.keys(state.players).length;
+  const playerCount = activePlayers().length;
   if (!playerCount) return;
   if (answered === undefined) return;
   if (answered >= playerCount) closeQuestion();
@@ -848,18 +856,35 @@ async function closeQuestion() {
   if (Object.keys(updates).length) await update(lobbyRef(), updates);
   await update(lobbyRef(), { status: "reveal", correct: q.correct });
 
-  revealAnswer(q, gained);
+  revealAnswer(q, gained, given);
 }
 
 // The answer stays up until someone moves it on. Nothing is automatic.
-function revealAnswer(q, gained) {
+function revealAnswer(q, gained, given = {}) {
   state.stage = "reveal";
   if (state.game !== "buzzer") gained.size ? sfx.correct() : sfx.timeUp();
   barRight.textContent = "";
+
+  // Who went where, so the room can see it at a glance.
+  const byAnswer = {};
+  for (const [pid, entry] of Object.entries(given)) {
+    const player = state.players[pid];
+    if (!player || entry.choice == null) continue;
+    (byAnswer[entry.choice] ||= []).push(player.name);
+  }
+
   document.querySelectorAll(".plate").forEach((el) => {
     const i = +el.dataset.i;
     if (i === q.correct) el.classList.add("is-correct");
     else el.classList.add("is-dimmed");
+
+    const names = byAnswer[i];
+    if (!names?.length) return;
+    const strip = document.createElement("span");
+    strip.className = "stickers";
+    strip.innerHTML = names
+      .map(n => `<span class="sticker">${escapeHtml(n)}</span>`).join("");
+    el.appendChild(strip);
   });
 
   const names = [...gained].map(pid => state.players[pid]?.name).filter(Boolean);
@@ -896,6 +921,21 @@ function showScores() {
 }
 
 // The admin drives the same two steps from their phone.
+const AWAY_GRACE_MS = 10 * 60 * 1000;
+
+// A closed tab keeps its place for ten minutes. Reopen inside that and the
+// score, the name and the admin role are all still there.
+function startAwaySweep() {
+  clearInterval(state.sweeper);
+  state.sweeper = setInterval(() => {
+    if (!state.code) return;
+    for (const [pid, p] of Object.entries(state.players)) {
+      if (!p.away || !p.leftAt) continue;
+      if (now() - p.leftAt > AWAY_GRACE_MS) remove(lobbyRef("players", pid));
+    }
+  }, 30000);
+}
+
 function watchAdvance() {
   state.unsubs.push(onValue(lobbyRef("control/advance"), (snap) => {
     if (snap.val() !== true) return;

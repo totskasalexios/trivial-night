@@ -18,7 +18,7 @@
 </div>
 
 <script type="module">
-import { db, ref, get, set, update, onValue, onDisconnect, runTransaction, makeId, now } from "./firebase.js";
+import { db, ref, get, set, update, onValue, onDisconnect, runTransaction, serverTimestamp, makeId, now } from "./firebase.js";
 
 const stage    = document.getElementById("stage");
 const barLeft  = document.getElementById("bar-left");
@@ -88,7 +88,10 @@ async function join() {
     });
   }
 
-  onDisconnect(lobbyRef("players", me.pid)).remove();
+  await update(lobbyRef("players", me.pid), { away: null, leftAt: null });
+  onDisconnect(lobbyRef("players", me.pid)).update({
+    away: true, leftAt: serverTimestamp()
+  });
   barRight.textContent = name;
   watchLobby();
 }
