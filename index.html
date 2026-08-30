@@ -763,8 +763,15 @@ function runTimer(ms, onEnd = closeQuestion) {
 let answersUnsub = null;
 function watchAnswers() {
   if (answersUnsub) answersUnsub();
+
+  // Counted from where the question already stood, so resuming from a pause
+  // does not replay the notes for answers already given.
+  let heard = state.answered;
+
   answersUnsub = onValue(lobbyRef("answers", String(state.index)), (snap) => {
     const answered = Object.keys(snap.val() || {}).length;
+    for (let i = heard; i < answered; i++) sfx.lockIn(i);
+    heard = Math.max(heard, answered);
     state.answered = answered;
     const tally = document.getElementById("tally");
     if (tally) tally.textContent = `${answered} / ${Object.keys(state.players).length}`;

@@ -85,6 +85,14 @@ export const sfx = {
   // Each answer plate dropping in, a step higher than the last.
   answer(i)   { note({ freq: 380 + i * 90, dur: 0.12, peak: 0.15, type: "sine" }); },
 
+  // A player locks an answer in. Each one a semitone above the last, so the
+  // room hears the answers stacking up. Capped at an octave so a big table
+  // does not end up shrieking.
+  lockIn(i) {
+    const step = Math.min(i, 12);
+    note({ freq: 440 * Math.pow(2, step / 12), dur: 0.11, peak: 0.16, type: "triangle" });
+  },
+
   // Timer down to its last few seconds.
   pip()       { note({ freq: 880, dur: 0.07, peak: 0.13, type: "square" }); },
 
