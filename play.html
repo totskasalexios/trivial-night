@@ -246,7 +246,9 @@ function renderOver(lobby) {
   stage.innerHTML = `
     <p class="eyebrow">You finished</p>
     <p class="phone__title">${ordinal(place)}</p>
-    <p class="phone__note">${mine} point${mine === 1 ? "" : "s"}. Stay here — the TV can start another game.</p>`;
+    <p class="phone__note">${mine} point${mine === 1 ? "" : "s"}.</p>
+    ${advanceButton("Play again")}`;
+  wireAdvance();
 }
 
 function escapeHtml(str) {

@@ -651,10 +651,16 @@ function revealAnswer(q, gained) {
     : "Nobody got that one.";
   stage.appendChild(line);
 
-  const row = document.createElement("div");
-  row.innerHTML = `<button class="btn" id="advance">Show the scores</button>`;
-  stage.appendChild(row);
-  document.getElementById("advance").onclick = showScores;
+  const cue = document.createElement("p");
+  cue.className = "cue";
+  cue.textContent = `${adminName()} moves it on.`;
+  stage.appendChild(cue);
+}
+
+// Whoever holds the controls, for the prompts on the board.
+function adminName() {
+  const admin = Object.values(state.players).find(p => p.isAdmin);
+  return admin ? admin.name : "The first player";
 }
 
 function showScores() {
@@ -662,10 +668,9 @@ function showScores() {
   state.stage = last ? "over" : "scores";
   barLeft.textContent = last ? "Final scores" : "Scores";
   stage.innerHTML = `<div class="board" id="live-board"></div>
-    <div><button class="btn" id="advance">${last ? "Play again" : "Next question"}</button></div>`;
+    <p class="cue">${escapeHtml(adminName())} ${last ? "can start another game." : "calls the next question."}</p>`;
   paintBoard(document.getElementById("live-board"));
   update(lobbyRef(), { status: last ? "over" : "scores", correct: null });
-  document.getElementById("advance").onclick = last ? restart : beginRound;
 }
 
 // The admin drives the same two steps from their phone.
@@ -675,6 +680,7 @@ function watchAdvance() {
     update(lobbyRef(), { "control/advance": null });
     if (state.stage === "reveal") showScores();
     else if (state.stage === "scores") beginRound();
+    else if (state.stage === "over") restart();
   }));
 }
 

@@ -481,3 +481,9 @@ button {
   letter-spacing: 0;
 }
 .picker__option:disabled { opacity: 0.4; }
+
+.cue {
+  color: var(--muted);
+  font-size: clamp(15px, 1.5vw, 28px);
+  margin: 0;
+}
