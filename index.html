@@ -50,6 +50,7 @@ const state = {
   mode: "random",   // random | choose
   game: "everyone", // everyone | buzzer
   sound: true,      // board audio on or off
+  lang: "en",       // which question bank is loaded
   lastCount: 0,     // roster size, to spot an arrival
   locked: new Set(),// players out of the current buzzer question
   qLeft: 0,         // question time still to run when someone buzzed
@@ -73,15 +74,24 @@ const lobbyRef = (...path) => ref(db, ["lobbies", state.code, ...path].join("/")
 
 // ---------- boot ----------
 
-try {
-  const res = await fetch("./questions.en.json");
+const BANKS = { en: "./questions.en.json", el: "./questions.el.json" };
+const banks = {};   // loaded once each, then kept
+
+async function loadBank(lang) {
+  if (banks[lang]) return banks[lang];
+  const res = await fetch(BANKS[lang]);
   if (!res.ok) throw new Error(res.status);
-  state.bank = await res.json();
+  banks[lang] = await res.json();
+  return banks[lang];
+}
+
+try {
+  state.bank = await loadBank("en");
 } catch (err) {
   stage.innerHTML = `<h1>No question bank</h1>
-    <p class="phone__note">questions.en.json could not be loaded. Run
-    <code>node tools/fetch-opentdb.mjs</code> to build it, or check the file is
-    beside this page.</p>`;
+    <p class="phone__note">questions.en.json could not be loaded. Open
+    <code>build-bank.html</code> to build it, or check the file is beside this
+    page.</p>`;
   throw err;
 }
 
@@ -94,7 +104,9 @@ function renderSetup() {
 
   if (!state.cats) {
     state.cats = new Set(
-      categories.filter(c => !OFF_BY_DEFAULT.some(rx => rx.test(c)))
+      state.lang === "en"
+        ? categories.filter(c => !OFF_BY_DEFAULT.some(rx => rx.test(c)))
+        : categories
     );
   }
 
@@ -120,8 +132,8 @@ function renderSetup() {
       <div class="setup__group">
         <p class="eyebrow">Language</p>
         <div class="bubbles bubbles--tight" id="g-lang">
-          <button class="bubble is-on" data-lang="en">English</button>
-          <button class="bubble is-soon" data-lang="el">Ελληνικά</button>
+          <button class="bubble ${state.lang === "en" ? "is-on" : ""}" data-lang="en">English</button>
+          <button class="bubble ${state.lang === "el" ? "is-on" : ""}" data-lang="el">Ελληνικά</button>
         </div>
         <p class="setup__note" id="lang-note"></p>
       </div>
@@ -222,11 +234,25 @@ function renderSetup() {
   document.getElementById("secs-custom").oninput  = (e) => { state.seconds = +e.target.value; };
   document.getElementById("count-custom").oninput = (e) => { state.count   = +e.target.value; };
 
-  document.getElementById("g-lang").onclick = (e) => {
+  document.getElementById("g-lang").onclick = async (e) => {
     const b = e.target.closest("[data-lang]");
-    if (!b) return;
-    document.getElementById("lang-note").textContent =
-      b.dataset.lang === "el" ? "Greek questions are not in the bank yet." : "";
+    if (!b || b.dataset.lang === state.lang) return;
+    const lang = b.dataset.lang;
+    const note = document.getElementById("lang-note");
+    note.textContent = "…";
+
+    try {
+      const bank = await loadBank(lang);
+      state.bank = bank;
+      state.lang = lang;
+      // Category names differ between the banks, so the selection restarts.
+      state.cats = null;
+      renderSetup();
+    } catch {
+      note.textContent = lang === "el"
+        ? "questions.el.json is missing. Add it beside this page."
+        : "That bank could not be loaded.";
+    }
   };
 
   state.diff = state.diff ?? "";
