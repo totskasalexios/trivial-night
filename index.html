@@ -42,7 +42,10 @@ const state = {
   ticker: null,
   closing: false,
   answered: 0,      // answers in for the current question
-  hadPlayers: false // true once anyone has joined this lobby
+  hadPlayers: false,// true once anyone has joined this lobby
+  cats: null,       // Set of category names switched on
+  diff: "",         // "", easy, medium, hard
+  count: 10         // questions in the game
 };
 
 const lobbyRef = (...path) => ref(db, ["lobbies", state.code, ...path].join("/"));
@@ -65,47 +68,153 @@ renderSetup();
 
 // ---------- setup ----------
 
+// Categories switched off when the board first opens. Matched by pattern so
+// they still hit whichever way the source spells them.
+const OFF_BY_DEFAULT = [/^sports?$/i, /japanese anime/i];
+
+const SECOND_CHOICES   = [10, 20, 30, 50];
+const QUESTION_CHOICES = [10, 20, 30, 40, 50];
+
 function renderSetup() {
   const categories = [...new Set(state.bank.map(q => q.category))].sort();
+
+  if (!state.cats) {
+    state.cats = new Set(
+      categories.filter(c => !OFF_BY_DEFAULT.some(rx => rx.test(c)))
+    );
+  }
+
   stage.innerHTML = `
-    <h1>Trivial Night</h1>
     <div class="setup">
-      <label>Category
-        <select id="f-cat">
-          <option value="">Everything</option>
-          ${categories.map(c => `<option>${c}</option>`).join("")}
-        </select>
-      </label>
-      <label>Difficulty
-        <select id="f-diff">
-          <option value="">Mixed</option>
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-      <label>Seconds per question
-        <input id="f-secs" type="number" min="5" max="90" value="20">
-      </label>
-      <label>Questions in the game
-        <input id="f-count" type="number" min="1" max="50" value="12">
-      </label>
+      <h1>Trivial Night</h1>
+
+      <div class="setup__group">
+        <p class="eyebrow">Language</p>
+        <div class="bubbles bubbles--tight" id="g-lang">
+          <button class="bubble is-on" data-lang="en">English</button>
+          <button class="bubble is-soon" data-lang="el">Ελληνικά</button>
+        </div>
+        <p class="setup__note" id="lang-note"></p>
+      </div>
+
+      <div class="setup__group">
+        <p class="eyebrow">Categories</p>
+        <div class="bubbles" id="g-cat">
+          ${categories.map(c => `
+            <button class="bubble ${state.cats.has(c) ? "is-on" : ""}"
+                    data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+        </div>
+        <div class="bubbles bubbles--tight">
+          <button class="bubble bubble--plain" id="cat-all">Select all</button>
+          <button class="bubble bubble--plain" id="cat-none">Clear</button>
+        </div>
+      </div>
+
+      <div class="setup__group">
+        <p class="eyebrow">Difficulty</p>
+        <div class="bubbles bubbles--tight" id="g-diff">
+          <button class="bubble is-on" data-diff="">Mixed</button>
+          <button class="bubble" data-diff="easy">Easy</button>
+          <button class="bubble" data-diff="medium">Medium</button>
+          <button class="bubble" data-diff="hard">Hard</button>
+        </div>
+      </div>
+
+      <div class="setup__group">
+        <p class="eyebrow">Seconds per question</p>
+        <div class="bubbles bubbles--tight" id="g-secs">
+          ${SECOND_CHOICES.map(n => `
+            <button class="bubble ${n === 20 ? "is-on" : ""}" data-secs="${n}">${n}</button>`).join("")}
+          <button class="bubble" data-secs="0">Off</button>
+          <button class="bubble" data-secs="custom">Custom</button>
+        </div>
+        <input class="setup__custom hidden" id="secs-custom" type="number" min="5" max="300" value="45">
+      </div>
+
+      <div class="setup__group">
+        <p class="eyebrow">Questions in the game</p>
+        <div class="bubbles bubbles--tight" id="g-count">
+          ${QUESTION_CHOICES.map(n => `
+            <button class="bubble ${n === 10 ? "is-on" : ""}" data-count="${n}">${n}</button>`).join("")}
+          <button class="bubble" data-count="custom">Custom</button>
+        </div>
+        <input class="setup__custom hidden" id="count-custom" type="number" min="1" max="200" value="75">
+      </div>
+
       <p class="error" id="setup-error"></p>
-      <div><button class="btn" id="go">Open the lobby</button></div>
+      <div><button class="btn btn--big" id="go">Open the lobby</button></div>
     </div>`;
+
+  // Categories toggle independently.
+  document.getElementById("g-cat").onclick = (e) => {
+    const b = e.target.closest("[data-cat]");
+    if (!b) return;
+    const cat = b.dataset.cat;
+    if (state.cats.has(cat)) { state.cats.delete(cat); b.classList.remove("is-on"); }
+    else { state.cats.add(cat); b.classList.add("is-on"); }
+  };
+  document.getElementById("cat-all").onclick = () => {
+    categories.forEach(c => state.cats.add(c));
+    document.querySelectorAll("[data-cat]").forEach(b => b.classList.add("is-on"));
+  };
+  document.getElementById("cat-none").onclick = () => {
+    state.cats.clear();
+    document.querySelectorAll("[data-cat]").forEach(b => b.classList.remove("is-on"));
+  };
+
+  pickOne("g-diff", "diff", (v) => { state.diff = v; });
+  pickOne("g-secs", "secs", (v) => {
+    const custom = document.getElementById("secs-custom");
+    custom.classList.toggle("hidden", v !== "custom");
+    state.seconds = v === "custom" ? +custom.value : +v;
+  });
+  pickOne("g-count", "count", (v) => {
+    const custom = document.getElementById("count-custom");
+    custom.classList.toggle("hidden", v !== "custom");
+    state.count = v === "custom" ? +custom.value : +v;
+  });
+
+  document.getElementById("secs-custom").oninput  = (e) => { state.seconds = +e.target.value; };
+  document.getElementById("count-custom").oninput = (e) => { state.count   = +e.target.value; };
+
+  document.getElementById("g-lang").onclick = (e) => {
+    const b = e.target.closest("[data-lang]");
+    if (!b) return;
+    document.getElementById("lang-note").textContent =
+      b.dataset.lang === "el" ? "Greek questions are not in the bank yet." : "";
+  };
+
+  state.diff = state.diff ?? "";
+  state.seconds = state.seconds || 20;
+  state.count = state.count || 10;
 
   document.getElementById("go").onclick = openLobby;
 }
 
-async function openLobby() {
-  const cat   = document.getElementById("f-cat").value;
-  const diff  = document.getElementById("f-diff").value;
-  const secs  = Math.min(90, Math.max(5, +document.getElementById("f-secs").value || 20));
-  const count = Math.min(50, Math.max(1, +document.getElementById("f-count").value || 12));
-  const err   = document.getElementById("setup-error");
+// One live choice per group: highlight the chosen bubble, dim the rest.
+function pickOne(groupId, key, apply) {
+  const group = document.getElementById(groupId);
+  group.onclick = (e) => {
+    const b = e.target.closest(`[data-${key}]`);
+    if (!b) return;
+    group.querySelectorAll(`[data-${key}]`).forEach(x => x.classList.remove("is-on"));
+    b.classList.add("is-on");
+    apply(b.dataset[key]);
+  };
+}
 
-  let pool = state.bank;
-  if (cat)  pool = pool.filter(q => q.category === cat);
+async function openLobby() {
+  const err   = document.getElementById("setup-error");
+  const diff  = state.diff || "";
+  const count = Math.min(200, Math.max(1, state.count || 10));
+  const secs  = state.seconds === 0 ? 0 : Math.min(300, Math.max(5, state.seconds || 20));
+
+  if (!state.cats.size) {
+    err.textContent = "Pick at least one category.";
+    return;
+  }
+
+  let pool = state.bank.filter(q => state.cats.has(q.category));
   if (diff) pool = pool.filter(q => q.difficulty === diff);
 
   if (pool.length < count) {
@@ -251,7 +360,7 @@ async function nextQuestion() {
   await update(lobbyRef(), {
     status: "question",
     qIndex: state.index,
-    endsAt: now() + state.seconds * 1000,
+    endsAt: state.seconds ? now() + state.seconds * 1000 : 0,
     correct: null,
     "control/start": null
   });
@@ -276,6 +385,11 @@ async function nextQuestion() {
 }
 
 function runTimer(ms) {
+  clearInterval(state.ticker);
+
+  // Timer off: the question closes only when everyone has answered.
+  if (!ms) { timerEl.classList.add("hidden"); return; }
+
   const startedAt = now();
   timerEl.classList.remove("hidden");
   clearInterval(state.ticker);

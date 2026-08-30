@@ -365,3 +365,76 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- setup screen: bubbles, centred for the TV ---------- */
+
+.setup {
+  display: grid;
+  gap: clamp(18px, 2.6vh, 34px);
+  justify-items: center;
+  text-align: center;
+  width: min(1500px, 92vw);
+  margin: 0 auto;
+  overflow-y: auto;
+  padding-block: 4px;
+}
+
+.setup h1 { margin-bottom: 0.2em; }
+
+.setup__group { display: grid; gap: 0.7em; justify-items: center; width: 100%; }
+
+.bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(8px, 0.9vw, 16px);
+  justify-content: center;
+  max-width: 100%;
+}
+.bubbles--tight { gap: clamp(8px, 0.7vw, 14px); }
+
+.bubble {
+  font: inherit;
+  font-size: clamp(15px, 1.35vw, 26px);
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.62em 1.25em;
+  border-radius: 999px;
+  border: 2px solid var(--ink-3);
+  background: var(--ink-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.bubble:hover { color: rgba(255, 255, 255, 0.72); }
+
+/* Selected reads bright; everything else stays dim. */
+.bubble.is-on {
+  color: var(--p2-on);
+  background: var(--p2);
+  border-color: var(--p2);
+  font-weight: 600;
+}
+
+.bubble--plain {
+  font-size: clamp(13px, 1vw, 18px);
+  padding: 0.5em 1em;
+  border-style: dashed;
+}
+
+.bubble.is-soon { opacity: 0.45; }
+
+.setup__custom {
+  font: inherit;
+  font-size: clamp(16px, 1.4vw, 26px);
+  text-align: center;
+  width: clamp(140px, 12vw, 220px);
+  padding: 0.5em 0.7em;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.setup__note { min-height: 1.3em; opacity: 0.6; font-size: clamp(13px, 1vw, 18px); }
+
+.btn--big { font-size: clamp(18px, 1.7vw, 30px); padding: 0.75em 2.4em; }
