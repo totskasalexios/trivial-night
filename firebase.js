@@ -4,7 +4,8 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import {
-  getDatabase, ref, get, set, update, remove, onValue, onDisconnect, serverTimestamp
+  getDatabase, ref, get, set, update, remove, onValue, onDisconnect,
+  serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 
 const firebaseConfig = {
@@ -58,4 +59,7 @@ export function decode(text) {
   return el.value;
 }
 
-export { db, ref, get, set, update, remove, onValue, onDisconnect, serverTimestamp };
+export {
+  db, ref, get, set, update, remove, onValue, onDisconnect,
+  serverTimestamp, runTransaction
+};

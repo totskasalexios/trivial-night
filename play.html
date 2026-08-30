@@ -18,7 +18,7 @@
 </div>
 
 <script type="module">
-import { db, ref, get, set, update, onValue, onDisconnect, makeId, now } from "./firebase.js";
+import { db, ref, get, set, update, onValue, onDisconnect, runTransaction, makeId, now } from "./firebase.js";
 
 const stage    = document.getElementById("stage");
 const barLeft  = document.getElementById("bar-left");
@@ -29,6 +29,8 @@ let lastStatus = null;
 let lastIndex  = -1;
 let picked     = null;
 let lastLobby  = null;
+let lastLocked = false;
+let lastHolder = null;
 
 const lobbyRef = (...path) => ref(db, ["lobbies", me.code, ...path].join("/"));
 
@@ -96,7 +98,14 @@ function watchLobby() {
     const lobby = snap.val();
     if (!lobby) return renderJoin("The TV closed that lobby.");
 
-    const changed = lobby.status !== lastStatus || lobby.qIndex !== lastIndex;
+    const lockedNow = !!lobby.buzz?.locked?.[me.pid];
+    const holderNow = lobby.buzz?.holder || null;
+    const changed = lobby.status !== lastStatus
+                 || lobby.qIndex !== lastIndex
+                 || lockedNow !== lastLocked
+                 || holderNow !== lastHolder;
+    lastLocked = lockedNow;
+    lastHolder = holderNow;
     lastLobby = lobby;
     lastStatus = lobby.status;
     lastIndex  = lobby.qIndex;
@@ -104,7 +113,9 @@ function watchLobby() {
 
     if (lobby.status === "lobby")    return renderWaiting();
     if (lobby.status === "picking")  return renderPicker(lobby);
-    if (lobby.status === "question") return renderPad(lobby.qIndex);
+    if (lobby.status === "question")  return lobby.game === "buzzer"
+      ? renderBuzzer(lobby) : renderPad(lobby.qIndex);
+    if (lobby.status === "answering") return renderAnswering(lobby);
     if (lobby.status === "paused")   return renderPaused();
     if (lobby.status === "reveal")   return renderVerdict(lobby.correct);
     if (lobby.status === "scores")   return renderBetween(lobby);
@@ -183,6 +194,72 @@ function renderPicker(lobby) {
     btn.onclick = () => {
       stage.querySelectorAll(".picker__option").forEach(b => b.disabled = true);
       update(lobbyRef("control"), { pick: +btn.dataset.i });
+    };
+  });
+}
+
+function renderBuzzer(lobby) {
+  picked = null;
+  barLeft.textContent = `Question ${lobby.qIndex + 1}`;
+
+  if (lobby.buzz?.locked?.[me.pid]) {
+    stage.innerHTML = `<h1 class="phone__title">You're out</h1>
+      <p class="phone__note">Wrong answer on this one. Wait for the next question.</p>`;
+    return;
+  }
+
+  stage.innerHTML = `
+    <p class="phone__note">Question is on the TV. First in gets to answer.</p>
+    <button class="buzzer" id="buzz">Buzz</button>`;
+
+  document.getElementById("buzz").onclick = async () => {
+    const btn = document.getElementById("buzz");
+    btn.disabled = true;
+
+    // Whoever's write lands first at the server takes it; the rest abort.
+    const res = await runTransaction(lobbyRef("buzz", "holder"), (held) => {
+      if (held === null) return me.pid;
+      return;
+    });
+
+    if (!(res.committed && res.snapshot.val() === me.pid)) {
+      btn.textContent = "Too slow";
+    }
+  };
+}
+
+function renderAnswering(lobby) {
+  const holder = lobby.buzz?.holder;
+  barLeft.textContent = `Question ${lobby.qIndex + 1}`;
+
+  if (holder !== me.pid) {
+    const who = lobby.players?.[holder]?.name || "Someone";
+    stage.innerHTML = `<h1 class="phone__title">${escapeHtml(who)} buzzed in</h1>
+      <p class="phone__note">Five seconds to answer. If they miss it, the buzzers reopen.</p>`;
+    return;
+  }
+
+  picked = null;
+  stage.innerHTML = `
+    <p class="phone__note">You're in. Tap the number, quickly.</p>
+    <div class="pad">
+      ${[1, 2, 3, 4].map(n => `
+        <button class="plate plate--${n}" data-i="${n - 1}" aria-label="Answer ${n}">
+          <span class="numeral">${n}</span>
+        </button>`).join("")}
+    </div>`;
+
+  stage.querySelectorAll(".pad .plate").forEach((btn) => {
+    btn.onclick = async () => {
+      if (picked !== null) return;
+      picked = +btn.dataset.i;
+      btn.classList.add("is-picked");
+      stage.querySelectorAll(".pad .plate").forEach((other) => {
+        if (other !== btn) other.classList.add("is-dimmed");
+      });
+      await set(lobbyRef("answers", String(lobby.qIndex), me.pid), {
+        choice: picked, at: now()
+      });
     };
   });
 }

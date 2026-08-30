@@ -21,7 +21,7 @@
 
 <script type="module">
 import {
-  db, ref, get, set, update, remove, onValue,
+  db, ref, get, set, update, remove, onValue, runTransaction,
   now, makeCode, shuffle, decode
 } from "./firebase.js";
 
@@ -47,6 +47,9 @@ const state = {
   diff: "",         // "", easy, medium, hard
   count: 10,        // questions in the game
   mode: "random",   // random | choose
+  game: "everyone", // everyone | buzzer
+  locked: new Set(),// players out of the current buzzer question
+  qLeft: 0,         // question time still to run when someone buzzed
   pool: [],         // questions matching the filters
   used: new Set(),  // indices already asked
   current: null,    // the question on screen
@@ -120,6 +123,14 @@ function renderSetup() {
       </div>
 
       <div class="setup__group">
+        <p class="eyebrow">Game mode</p>
+        <div class="bubbles bubbles--tight" id="g-game">
+          <button class="bubble is-on" data-game="everyone">Everyone answers</button>
+          <button class="bubble" data-game="buzzer">Buzzer</button>
+        </div>
+      </div>
+
+      <div class="setup__group">
         <p class="eyebrow">Question order</p>
         <div class="bubbles bubbles--tight" id="g-mode">
           <button class="bubble is-on" data-mode="random">Random categories</button>
@@ -181,6 +192,7 @@ function renderSetup() {
     document.querySelectorAll("[data-cat]").forEach(b => b.classList.remove("is-on"));
   };
 
+  pickOne("g-game", "game", (v) => { state.game = v; });
   pickOne("g-mode", "mode", (v) => { state.mode = v; });
   pickOne("g-diff", "diff", (v) => { state.diff = v; });
   pickOne("g-secs", "secs", (v) => {
@@ -206,6 +218,7 @@ function renderSetup() {
 
   state.diff = state.diff ?? "";
   state.mode = state.mode || "random";
+  state.game = state.game || "everyone";
   state.seconds = state.seconds || 20;
   state.count = state.count || 10;
 
@@ -271,6 +284,7 @@ async function openLobby() {
     seconds: secs,
     total: count,
     mode: state.mode,
+    game: state.game,
     endsAt: 0,
     openedAt: now()
   });
@@ -345,6 +359,8 @@ async function abandonLobby() {
   clearInterval(state.ticker);
   if (answersUnsub) { answersUnsub(); answersUnsub = null; }
   if (pickUnsub) { pickUnsub(); pickUnsub = null; }
+  if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
+  if (buzzAnswerUnsub) { buzzAnswerUnsub(); buzzAnswerUnsub = null; }
   document.getElementById("veil")?.remove();
   state.unsubs.forEach(off => off());
   state.unsubs = [];
@@ -431,7 +447,9 @@ async function beginRound() {
 
   if (state.index >= state.count) return finish();
 
-  await update(lobbyRef(), { "control/advance": null, "control/pick": null });
+  await update(lobbyRef(), {
+    "control/advance": null, "control/pick": null, "control/start": null
+  });
 
   if (state.mode === "choose" && liveCategories().length > 1) return askForCategory();
 
@@ -505,6 +523,8 @@ async function askQuestion(category) {
   state.current = q;
   state.lastCat = q.category;
   state.stage = "question";
+  state.locked = new Set();
+  state.qLeft = state.seconds * 1000;
 
   await update(lobbyRef(), {
     status: "question",
@@ -512,6 +532,7 @@ async function askQuestion(category) {
     endsAt: state.seconds ? now() + state.seconds * 1000 : 0,
     correct: null,
     pick: null,
+    buzz: null,
     "control/start": null
   });
 
@@ -530,7 +551,96 @@ async function askQuestion(category) {
     </div>`;
 
   runTimer(state.seconds * 1000);
-  watchAnswers();
+  if (state.game === "buzzer") watchBuzzer();
+  else watchAnswers();
+}
+
+// ---------- buzzer mode ----------
+
+const BUZZ_ANSWER_MS = 5000;
+
+let buzzUnsub = null;
+function watchBuzzer() {
+  if (buzzUnsub) buzzUnsub();
+  barRight.innerHTML = `<span class="tally">Buzzers open</span>`;
+  buzzUnsub = onValue(lobbyRef("buzz/holder"), (snap) => {
+    const pid = snap.val();
+    if (!pid || state.stage !== "question") return;
+    if (!state.players[pid]) return;
+    takeTheBuzz(pid);
+  });
+}
+
+// Someone got in first. The question clock stops and they get their own.
+async function takeTheBuzz(pid) {
+  state.stage = "answering";
+  clearInterval(state.ticker);
+  state.qLeft = state.seconds ? Math.max(0, state.endsAtLocal - now()) : 0;
+
+  const player = state.players[pid];
+  barRight.innerHTML = `<span class="tally">${escapeHtml(player.name)} buzzed</span>`;
+
+  await update(lobbyRef(), {
+    status: "answering",
+    endsAt: now() + BUZZ_ANSWER_MS,
+    "buzz/answerer": pid
+  });
+
+  runTimer(BUZZ_ANSWER_MS, () => settleBuzz(pid, null));
+  watchBuzzAnswer(pid);
+}
+
+let buzzAnswerUnsub = null;
+function watchBuzzAnswer(pid) {
+  if (buzzAnswerUnsub) buzzAnswerUnsub();
+  buzzAnswerUnsub = onValue(lobbyRef("answers", String(state.index), pid), (snap) => {
+    const entry = snap.val();
+    if (!entry || state.stage !== "answering") return;
+    settleBuzz(pid, entry.choice);
+  });
+}
+
+// Right: a point and the question is done. Wrong, or out of time: a point off,
+// that player is out, and the buzzers reopen for whoever is left.
+async function settleBuzz(pid, choice) {
+  if (state.stage !== "answering") return;
+  state.stage = "settling";
+  clearInterval(state.ticker);
+  if (buzzAnswerUnsub) { buzzAnswerUnsub(); buzzAnswerUnsub = null; }
+
+  const q = state.current;
+  const player = state.players[pid];
+  const right = choice === q.correct;
+  const score = (player?.score || 0) + (right ? 1 : -1);
+
+  await update(lobbyRef(), { [`players/${pid}/score`]: score });
+
+  if (right) {
+    if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
+    await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
+    return revealAnswer(q, new Set([pid]));
+  }
+
+  state.locked.add(pid);
+  const stillIn = Object.keys(state.players).filter(id => !state.locked.has(id));
+
+  if (!stillIn.length || (state.seconds && state.qLeft <= 0)) {
+    if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
+    await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
+    return revealAnswer(q, new Set());
+  }
+
+  state.stage = "question";
+  await update(lobbyRef(), {
+    status: "question",
+    endsAt: state.seconds ? now() + state.qLeft : 0,
+    "buzz/holder": null,
+    "buzz/answerer": null,
+    [`buzz/locked/${pid}`]: true
+  });
+
+  barRight.innerHTML = `<span class="tally">Buzzers open</span>`;
+  runTimer(state.seconds ? state.qLeft : 0);
 }
 
 // ---------- pause ----------
@@ -569,7 +679,7 @@ function resumeRound() {
   watchAnswers();
 }
 
-function runTimer(ms) {
+function runTimer(ms, onEnd = closeQuestion) {
   clearInterval(state.ticker);
 
   // Timer off: the question closes only when everyone has answered.
@@ -581,7 +691,7 @@ function runTimer(ms) {
   state.ticker = setInterval(() => {
     const left = Math.max(0, 1 - (now() - startedAt) / ms);
     timerFill.style.transform = `scaleX(${left})`;
-    if (left <= 0) closeQuestion();
+    if (left <= 0) { clearInterval(state.ticker); onEnd(); }
   }, 80);
 }
 
@@ -599,6 +709,7 @@ function watchAnswers() {
 
 function maybeCloseEarly(answered) {
   if (state.stage === "paused") return;
+  if (state.game === "buzzer") return;
   const playerCount = Object.keys(state.players).length;
   if (!playerCount) return;
   if (answered === undefined) return;
@@ -614,6 +725,16 @@ async function closeQuestion() {
   timerEl.classList.add("hidden");
 
   const q = state.current;
+
+  // Buzzer mode scores as it goes, so a closed question just means the
+  // clock ran out with nobody in.
+  if (state.game === "buzzer") {
+    if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
+    if (buzzAnswerUnsub) { buzzAnswerUnsub(); buzzAnswerUnsub = null; }
+    await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
+    return revealAnswer(q, new Set());
+  }
+
   const snap = await get(lobbyRef("answers", String(state.index)));
   const given = snap.val() || {};
 
@@ -647,7 +768,7 @@ function revealAnswer(q, gained) {
   line.className = "phone__note";
   line.style.fontSize = "clamp(16px,1.6vw,30px)";
   line.textContent = names.length
-    ? `Point to ${names.join(", ")}.`
+    ? (state.game === "buzzer" ? `${names.join(", ")} got it.` : `Point to ${names.join(", ")}.`)
     : "Nobody got that one.";
   stage.appendChild(line);
 
