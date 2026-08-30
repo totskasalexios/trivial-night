@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trivial Night — screen</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -341,8 +342,26 @@ async function openLobby() {
 
 // ---------- lobby ----------
 
-function joinUrl() {
-  return new URL("play.html", location.href).href;
+function joinUrl(withCode = false) {
+  const url = new URL("play.html", location.href);
+  if (withCode && state.code) url.searchParams.set("c", state.code);
+  return url.href;
+}
+
+// The code travels inside the QR, so a phone that scans it only types a name.
+function paintQr() {
+  const wrap = document.getElementById("qr-wrap");
+  const canvas = document.getElementById("qr");
+  if (!wrap || !canvas) return;
+
+  if (!window.QRCode) { wrap.classList.add("hidden"); return; }
+
+  window.QRCode.toCanvas(canvas, joinUrl(true), {
+    width: 420,
+    margin: 1,
+    errorCorrectionLevel: "M",
+    color: { dark: "#171233", light: "#f3ede3" }
+  }, (err) => { if (err) wrap.classList.add("hidden"); });
 }
 
 function renderLobby() {
@@ -351,13 +370,17 @@ function renderLobby() {
   timerEl.classList.add("hidden");
 
   stage.innerHTML = `
-    <div>
-      <p class="eyebrow">Join at</p>
-      <p class="joinurl">${joinUrl().replace(/^https?:\/\//, "")}</p>
-    </div>
-    <div>
-      <p class="eyebrow">Lobby code</p>
-      <p class="code">${state.code}</p>
+    <div class="joinbox">
+      <div class="joinbox__qr" id="qr-wrap">
+        <canvas id="qr"></canvas>
+        <p class="joinbox__scan">Scan to join</p>
+      </div>
+      <div class="joinbox__text">
+        <p class="eyebrow">Join at</p>
+        <p class="joinurl">${joinUrl().replace(/^https?:\/\//, "")}</p>
+        <p class="eyebrow">Lobby code</p>
+        <p class="code">${state.code}</p>
+      </div>
     </div>
     <div class="roster" id="roster"></div>
     <p class="phone__note" id="lobby-hint">The first player to join starts the game.</p>
@@ -366,6 +389,7 @@ function renderLobby() {
       <button class="btn btn--ghost" id="host-start">Start from here instead</button>
     </div>`;
 
+  paintQr();
   document.getElementById("host-start").onclick = startGame;
   document.getElementById("lobby-back").onclick = abandonLobby;
   paintRoster();

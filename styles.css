@@ -578,3 +578,40 @@ button {
 .sticker:nth-child(even) { transform: rotate(1.5deg); }
 
 .plate.is-dimmed .sticker { filter: saturate(1.6) brightness(1.9); }
+
+/* ---------- lobby join panel ---------- */
+
+.joinbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 4vw, 72px);
+  flex-wrap: wrap;
+}
+
+.joinbox__qr {
+  background: var(--bone);
+  padding: clamp(10px, 1vw, 18px);
+  border-radius: 20px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+.joinbox__qr canvas {
+  display: block;
+  width: clamp(150px, 17vw, 320px);
+  height: auto;
+  image-rendering: pixelated;
+}
+.joinbox__scan {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--body);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: clamp(11px, 0.85vw, 15px);
+}
+
+.joinbox__text { display: grid; gap: 0.1em; justify-items: center; }

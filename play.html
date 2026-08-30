@@ -37,12 +37,15 @@ const lobbyRef = (...path) => ref(db, ["lobbies", me.code, ...path].join("/"));
 renderJoin();
 
 function renderJoin(message = "") {
-  const fromUrl = new URLSearchParams(location.search).get("code") || "";
+  // Scanned QR sends ?c=, a shared link may use ?code=. Both work.
+  const params = new URLSearchParams(location.search);
+  const fromUrl = (params.get("c") || params.get("code") || "")
+    .trim().toUpperCase().slice(0, 4);
   stage.innerHTML = `
     <h1 class="phone__title">Join the game</h1>
     <div class="join">
       <input id="j-code" maxlength="4" autocomplete="off" autocapitalize="characters"
-             spellcheck="false" placeholder="CODE" value="${fromUrl.toUpperCase()}">
+             spellcheck="false" placeholder="CODE" value="${fromUrl}">
       <input id="j-name" class="name" maxlength="14" autocomplete="off" placeholder="Your name">
       <p class="error">${message}</p>
       <button class="btn" id="j-go">Join</button>
@@ -53,6 +56,9 @@ function renderJoin(message = "") {
   document.getElementById("j-name").addEventListener("keydown", (e) => {
     if (e.key === "Enter") join();
   });
+
+  // Arrived by QR: the code is already in, so go straight to the name.
+  if (fromUrl.length === 4) document.getElementById("j-name").focus();
 }
 
 async function join() {
