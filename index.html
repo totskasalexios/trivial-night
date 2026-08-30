@@ -48,6 +48,13 @@ const state = {
   count: 10         // questions in the game
 };
 
+// Categories switched off when the board first opens. Matched by pattern so
+// they still hit whichever way the source spells them.
+const OFF_BY_DEFAULT = [/^sports?$/i, /japanese anime/i];
+
+const SECOND_CHOICES   = [10, 20, 30, 50];
+const QUESTION_CHOICES = [10, 20, 30, 40, 50];
+
 const lobbyRef = (...path) => ref(db, ["lobbies", state.code, ...path].join("/"));
 
 // ---------- boot ----------
@@ -67,13 +74,6 @@ try {
 renderSetup();
 
 // ---------- setup ----------
-
-// Categories switched off when the board first opens. Matched by pattern so
-// they still hit whichever way the source spells them.
-const OFF_BY_DEFAULT = [/^sports?$/i, /japanese anime/i];
-
-const SECOND_CHOICES   = [10, 20, 30, 50];
-const QUESTION_CHOICES = [10, 20, 30, 40, 50];
 
 function renderSetup() {
   const categories = [...new Set(state.bank.map(q => q.category))].sort();
