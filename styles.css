@@ -436,3 +436,48 @@ button {
 .setup__note { min-height: 1.3em; opacity: 0.6; font-size: clamp(13px, 1vw, 18px); }
 
 .btn--big { font-size: clamp(18px, 1.7vw, 30px); padding: 0.75em 2.4em; }
+
+/* ---------- pause veil ---------- */
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-content: center;
+  gap: 0.6em;
+  text-align: center;
+  background: rgba(23, 18, 51, 0.92);
+  backdrop-filter: blur(3px);
+}
+.veil__word {
+  font-family: var(--display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: clamp(48px, 11vw, 190px);
+  color: var(--p2);
+  margin: 0;
+}
+
+/* ---------- lobby buttons ---------- */
+
+.lobby__buttons {
+  display: flex;
+  gap: clamp(10px, 1.2vw, 22px);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- category picker on the phone ---------- */
+
+.picker { display: grid; gap: 12px; width: 100%; }
+.picker__option {
+  width: 100%;
+  padding: 1.1em 0.9em;
+  font-size: 18px;
+  line-height: 1.2;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.picker__option:disabled { opacity: 0.4; }

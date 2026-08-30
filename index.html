@@ -45,7 +45,14 @@ const state = {
   hadPlayers: false,// true once anyone has joined this lobby
   cats: null,       // Set of category names switched on
   diff: "",         // "", easy, medium, hard
-  count: 10         // questions in the game
+  count: 10,        // questions in the game
+  mode: "random",   // random | choose
+  pool: [],         // questions matching the filters
+  used: new Set(),  // indices already asked
+  current: null,    // the question on screen
+  lastCat: null,    // category of the previous round
+  stage: "setup",   // setup | lobby | picking | question | paused | reveal | scores | over
+  pausedLeft: 0     // ms left on the clock when paused
 };
 
 // Categories switched off when the board first opens. Matched by pattern so
@@ -113,6 +120,14 @@ function renderSetup() {
       </div>
 
       <div class="setup__group">
+        <p class="eyebrow">Question order</p>
+        <div class="bubbles bubbles--tight" id="g-mode">
+          <button class="bubble is-on" data-mode="random">Random categories</button>
+          <button class="bubble" data-mode="choose">Choose category</button>
+        </div>
+      </div>
+
+      <div class="setup__group">
         <p class="eyebrow">Difficulty</p>
         <div class="bubbles bubbles--tight" id="g-diff">
           <button class="bubble is-on" data-diff="">Mixed</button>
@@ -166,6 +181,7 @@ function renderSetup() {
     document.querySelectorAll("[data-cat]").forEach(b => b.classList.remove("is-on"));
   };
 
+  pickOne("g-mode", "mode", (v) => { state.mode = v; });
   pickOne("g-diff", "diff", (v) => { state.diff = v; });
   pickOne("g-secs", "secs", (v) => {
     const custom = document.getElementById("secs-custom");
@@ -189,6 +205,7 @@ function renderSetup() {
   };
 
   state.diff = state.diff ?? "";
+  state.mode = state.mode || "random";
   state.seconds = state.seconds || 20;
   state.count = state.count || 10;
 
@@ -227,16 +244,10 @@ async function openLobby() {
   }
 
   state.seconds = secs;
-  state.round = shuffle(pool).slice(0, count).map(q => {
-    const correct = decode(q.correct_answer);
-    const answers = shuffle([correct, ...q.incorrect_answers.map(decode)]);
-    return {
-      category: q.category,
-      question: decode(q.question),
-      answers,
-      correct: answers.indexOf(correct)
-    };
-  });
+  state.count = count;
+  state.pool = pool;
+  state.used = new Set();
+  state.lastCat = null;
 
   // Claim a free code. A lobby older than six hours belongs to a TV that
   // closed without cleaning up, so its code is fair game.
@@ -259,12 +270,15 @@ async function openLobby() {
     qIndex: -1,
     seconds: secs,
     total: count,
+    mode: state.mode,
     endsAt: 0,
     openedAt: now()
   });
 
+  state.stage = "lobby";
   watchPlayers();
   watchStartRequest();
+  watchAdvance();
   renderLobby();
 }
 
@@ -290,9 +304,13 @@ function renderLobby() {
     </div>
     <div class="roster" id="roster"></div>
     <p class="phone__note" id="lobby-hint">The first player to join starts the game.</p>
-    <div><button class="btn btn--ghost" id="host-start">Start from here instead</button></div>`;
+    <div class="lobby__buttons">
+      <button class="btn btn--ghost" id="lobby-back">Back to setup</button>
+      <button class="btn btn--ghost" id="host-start">Start from here instead</button>
+    </div>`;
 
   document.getElementById("host-start").onclick = startGame;
+  document.getElementById("lobby-back").onclick = abandonLobby;
   paintRoster();
 }
 
@@ -326,6 +344,8 @@ function watchPlayers() {
 async function abandonLobby() {
   clearInterval(state.ticker);
   if (answersUnsub) { answersUnsub(); answersUnsub = null; }
+  if (pickUnsub) { pickUnsub(); pickUnsub = null; }
+  document.getElementById("veil")?.remove();
   state.unsubs.forEach(off => off());
   state.unsubs = [];
   const dead = state.code;
@@ -335,6 +355,10 @@ async function abandonLobby() {
   state.hadPlayers = false;
   state.answered = 0;
   state.closing = false;
+  state.stage = "setup";
+  state.used = new Set();
+  state.lastCat = null;
+  state.current = null;
   timerEl.classList.add("hidden");
   if (dead) await remove(ref(db, `lobbies/${dead}`));
   renderSetup();
@@ -351,30 +375,151 @@ function watchStartRequest() {
 function startGame() {
   if (state.index !== -1) return;
   if (!Object.keys(state.players).length) return;
-  nextQuestion();
+  beginRound();
 }
 
-async function nextQuestion() {
+// ---------- choosing what to ask ----------
+
+// Categories that still have an unasked question in them.
+function liveCategories() {
+  const left = new Set();
+  state.pool.forEach((q, i) => { if (!state.used.has(i)) left.add(q.category); });
+  return [...state.cats].filter(c => left.has(c));
+}
+
+// Every live category is equally likely, however many questions it holds,
+// and the category just used never comes round twice running.
+function randomCategory() {
+  const live = liveCategories();
+  if (!live.length) return null;
+  const choices = live.length > 1 ? live.filter(c => c !== state.lastCat) : live;
+  const from = choices.length ? choices : live;
+  return from[Math.floor(Math.random() * from.length)];
+}
+
+function categoryOptions(n = 3) {
+  const live = liveCategories();
+  const choices = live.length > 1 ? live.filter(c => c !== state.lastCat) : live;
+  return shuffle(choices.length ? choices : live).slice(0, n);
+}
+
+// Pull an unasked question out of a category and shuffle its answers.
+function takeQuestion(category) {
+  const ids = [];
+  state.pool.forEach((q, i) => { if (!state.used.has(i) && q.category === category) ids.push(i); });
+  if (!ids.length) return null;
+
+  const id = ids[Math.floor(Math.random() * ids.length)];
+  state.used.add(id);
+  const raw = state.pool[id];
+  const correct = decode(raw.correct_answer);
+  const answers = shuffle([correct, ...raw.incorrect_answers.map(decode)]);
+  return {
+    category: raw.category,
+    question: decode(raw.question),
+    answers,
+    correct: answers.indexOf(correct)
+  };
+}
+
+// ---------- the round ----------
+
+async function beginRound() {
   state.index += 1;
   state.closing = false;
   state.answered = 0;
 
-  if (state.index >= state.round.length) return finish();
+  if (state.index >= state.count) return finish();
+
+  await update(lobbyRef(), { "control/advance": null, "control/pick": null });
+
+  if (state.mode === "choose" && liveCategories().length > 1) return askForCategory();
+
+  const cat = randomCategory();
+  if (!cat) return finish();
+  askQuestion(cat);
+}
+
+// The player on the lowest score picks; ties are broken at random.
+function chooser() {
+  const entries = Object.entries(state.players);
+  if (!entries.length) return null;
+  const low = Math.min(...entries.map(([, p]) => p.score || 0));
+  const tied = entries.filter(([, p]) => (p.score || 0) === low);
+  return tied[Math.floor(Math.random() * tied.length)];
+}
+
+async function askForCategory() {
+  const picked = chooser();
+  if (!picked) return askQuestion(randomCategory());
+
+  const [pid, player] = picked;
+  const options = categoryOptions(3);
+  if (options.length < 2) return askQuestion(options[0] || randomCategory());
+
+  state.stage = "picking";
+  timerEl.classList.add("hidden");
+  barLeft.textContent = "Choosing the category";
+  barRight.textContent = "";
+
+  stage.innerHTML = `
+    <p class="eyebrow">Question ${state.index + 1} of ${state.count}</p>
+    <h2 class="question">${escapeHtml(player.name)} is choosing</h2>
+    <div class="answers">
+      ${options.map((c, i) => `
+        <div class="plate plate--${i + 1}" data-i="${i}">
+          <span class="numeral">${i + 1}</span>
+          <span>${escapeHtml(c)}</span>
+        </div>`).join("")}
+    </div>
+    <p class="phone__note">Lowest score picks. It is on ${escapeHtml(player.name)}'s phone.</p>`;
+
+  await update(lobbyRef(), {
+    status: "picking",
+    qIndex: state.index,
+    endsAt: 0,
+    correct: null,
+    pick: { pid, name: player.name, options }
+  });
+
+  watchPick(options);
+}
+
+let pickUnsub = null;
+function watchPick(options) {
+  if (pickUnsub) pickUnsub();
+  pickUnsub = onValue(lobbyRef("control/pick"), (snap) => {
+    const choice = snap.val();
+    if (choice === null || choice === undefined) return;
+    if (pickUnsub) { pickUnsub(); pickUnsub = null; }
+    const cat = options[choice] || randomCategory();
+    update(lobbyRef(), { "control/pick": null, pick: null });
+    askQuestion(cat);
+  });
+}
+
+async function askQuestion(category) {
+  const q = takeQuestion(category);
+  if (!q) return finish();
+
+  state.current = q;
+  state.lastCat = q.category;
+  state.stage = "question";
 
   await update(lobbyRef(), {
     status: "question",
     qIndex: state.index,
     endsAt: state.seconds ? now() + state.seconds * 1000 : 0,
     correct: null,
+    pick: null,
     "control/start": null
   });
 
-  const q = state.round[state.index];
   barLeft.textContent = q.category;
   barRight.innerHTML = `<span class="tally" id="tally">0 / ${Object.keys(state.players).length}</span>`;
 
   stage.innerHTML = `
-    <p class="eyebrow">Question ${state.index + 1} of ${state.round.length}</p>
+    <p class="eyebrow">Question ${state.index + 1} of ${state.count}</p>
     <h2 class="question">${escapeHtml(q.question)}</h2>
     <div class="answers">
       ${q.answers.map((a, i) => `
@@ -388,6 +533,42 @@ async function nextQuestion() {
   watchAnswers();
 }
 
+// ---------- pause ----------
+
+// Esc on a keyboard, OK on a TV remote.
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" && e.key !== "Enter") return;
+  if (state.stage !== "question" && state.stage !== "paused") return;
+  e.preventDefault();
+  state.stage === "question" ? pauseRound() : resumeRound();
+});
+
+function pauseRound() {
+  state.stage = "paused";
+  clearInterval(state.ticker);
+  state.pausedLeft = state.seconds ? Math.max(0, state.endsAtLocal - now()) : 0;
+  update(lobbyRef(), { status: "paused", endsAt: 0 });
+
+  const veil = document.createElement("div");
+  veil.className = "veil";
+  veil.id = "veil";
+  veil.innerHTML = `<p class="veil__word">Paused</p>
+    <p class="phone__note">Esc, or OK on the remote, to carry on.</p>`;
+  document.body.appendChild(veil);
+}
+
+function resumeRound() {
+  state.stage = "question";
+  document.getElementById("veil")?.remove();
+  const left = state.pausedLeft;
+  update(lobbyRef(), {
+    status: "question",
+    endsAt: state.seconds ? now() + left : 0
+  });
+  runTimer(state.seconds ? left : 0);
+  watchAnswers();
+}
+
 function runTimer(ms) {
   clearInterval(state.ticker);
 
@@ -395,8 +576,8 @@ function runTimer(ms) {
   if (!ms) { timerEl.classList.add("hidden"); return; }
 
   const startedAt = now();
+  state.endsAtLocal = startedAt + ms;
   timerEl.classList.remove("hidden");
-  clearInterval(state.ticker);
   state.ticker = setInterval(() => {
     const left = Math.max(0, 1 - (now() - startedAt) / ms);
     timerFill.style.transform = `scaleX(${left})`;
@@ -417,6 +598,7 @@ function watchAnswers() {
 }
 
 function maybeCloseEarly(answered) {
+  if (state.stage === "paused") return;
   const playerCount = Object.keys(state.players).length;
   if (!playerCount) return;
   if (answered === undefined) return;
@@ -431,7 +613,7 @@ async function closeQuestion() {
   if (answersUnsub) { answersUnsub(); answersUnsub = null; }
   timerEl.classList.add("hidden");
 
-  const q = state.round[state.index];
+  const q = state.current;
   const snap = await get(lobbyRef("answers", String(state.index)));
   const given = snap.val() || {};
 
@@ -450,7 +632,9 @@ async function closeQuestion() {
   revealAnswer(q, gained);
 }
 
+// The answer stays up until someone moves it on. Nothing is automatic.
 function revealAnswer(q, gained) {
+  state.stage = "reveal";
   barRight.textContent = "";
   document.querySelectorAll(".plate").forEach((el) => {
     const i = +el.dataset.i;
@@ -467,30 +651,31 @@ function revealAnswer(q, gained) {
     : "Nobody got that one.";
   stage.appendChild(line);
 
-  setTimeout(showScores, 2600);
+  const row = document.createElement("div");
+  row.innerHTML = `<button class="btn" id="advance">Show the scores</button>`;
+  stage.appendChild(row);
+  document.getElementById("advance").onclick = showScores;
 }
 
 function showScores() {
-  const last = state.index >= state.round.length - 1;
+  const last = state.index >= state.count - 1;
+  state.stage = last ? "over" : "scores";
   barLeft.textContent = last ? "Final scores" : "Scores";
   stage.innerHTML = `<div class="board" id="live-board"></div>
     <div><button class="btn" id="advance">${last ? "Play again" : "Next question"}</button></div>`;
   paintBoard(document.getElementById("live-board"));
-  update(lobbyRef(), { status: last ? "over" : "scores" });
+  update(lobbyRef(), { status: last ? "over" : "scores", correct: null });
+  document.getElementById("advance").onclick = last ? restart : beginRound;
+}
 
-  const btn = document.getElementById("advance");
-  btn.onclick = last ? restart : nextQuestion;
-
-  if (!last) {
-    let left = 6;
-    btn.textContent = `Next question (${left})`;
-    const t = setInterval(() => {
-      left -= 1;
-      if (!document.getElementById("advance")) return clearInterval(t);
-      if (left <= 0) { clearInterval(t); nextQuestion(); }
-      else btn.textContent = `Next question (${left})`;
-    }, 1000);
-  }
+// The admin drives the same two steps from their phone.
+function watchAdvance() {
+  state.unsubs.push(onValue(lobbyRef("control/advance"), (snap) => {
+    if (snap.val() !== true) return;
+    update(lobbyRef(), { "control/advance": null });
+    if (state.stage === "reveal") showScores();
+    else if (state.stage === "scores") beginRound();
+  }));
 }
 
 function paintBoard(el) {
@@ -515,8 +700,12 @@ async function restart() {
   for (const pid of Object.keys(state.players)) resets[`players/${pid}/score`] = 0;
   if (Object.keys(resets).length) await update(lobbyRef(), resets);
   state.index = -1;
-  state.round = shuffle(state.round);
-  await update(lobbyRef(), { status: "lobby", qIndex: -1, endsAt: 0, correct: null });
+  state.used = new Set();
+  state.lastCat = null;
+  state.stage = "lobby";
+  await update(lobbyRef(), {
+    status: "lobby", qIndex: -1, endsAt: 0, correct: null, pick: null
+  });
   renderLobby();
 }
 

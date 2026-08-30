@@ -28,6 +28,7 @@ const me = { code: null, pid: null, name: "", isAdmin: false };
 let lastStatus = null;
 let lastIndex  = -1;
 let picked     = null;
+let lastLobby  = null;
 
 const lobbyRef = (...path) => ref(db, ["lobbies", me.code, ...path].join("/"));
 
@@ -96,12 +97,15 @@ function watchLobby() {
     if (!lobby) return renderJoin("The TV closed that lobby.");
 
     const changed = lobby.status !== lastStatus || lobby.qIndex !== lastIndex;
+    lastLobby = lobby;
     lastStatus = lobby.status;
     lastIndex  = lobby.qIndex;
     if (!changed) return;
 
     if (lobby.status === "lobby")    return renderWaiting();
+    if (lobby.status === "picking")  return renderPicker(lobby);
     if (lobby.status === "question") return renderPad(lobby.qIndex);
+    if (lobby.status === "paused")   return renderPaused();
     if (lobby.status === "reveal")   return renderVerdict(lobby.correct);
     if (lobby.status === "scores")   return renderBetween(lobby);
     if (lobby.status === "over")     return renderOver(lobby);
@@ -120,7 +124,7 @@ function renderWaiting() {
   if (btn) btn.onclick = () => update(lobbyRef("control"), { start: true });
 }
 
-function renderPad(qIndex) {
+async function renderPad(qIndex) {
   picked = null;
   barLeft.textContent = `Question ${qIndex + 1}`;
   stage.innerHTML = `
@@ -131,6 +135,15 @@ function renderPad(qIndex) {
           <span class="numeral">${n}</span>
         </button>`).join("")}
     </div>`;
+
+  const already = await get(lobbyRef("answers", String(qIndex), me.pid));
+  if (already.exists()) {
+    picked = already.val().choice;
+    stage.querySelectorAll(".pad .plate").forEach((b) => {
+      if (+b.dataset.i === picked) b.classList.add("is-picked");
+      else b.classList.add("is-dimmed");
+    });
+  }
 
   stage.querySelectorAll(".pad .plate").forEach((btn) => {
     btn.onclick = async () => {
@@ -147,18 +160,70 @@ function renderPad(qIndex) {
   });
 }
 
+function renderPicker(lobby) {
+  const pick = lobby.pick || {};
+  barLeft.textContent = "Category";
+
+  if (pick.pid !== me.pid) {
+    stage.innerHTML = `<h1 class="phone__title">${escapeHtml(pick.name || "Someone")} is choosing</h1>
+      <p class="phone__note">Lowest score picks the category.</p>`;
+    return;
+  }
+
+  const options = pick.options || [];
+  stage.innerHTML = `
+    <h1 class="phone__title">Your pick</h1>
+    <p class="phone__note">You're on the lowest score. Choose the category.</p>
+    <div class="picker">
+      ${options.map((c, i) => `
+        <button class="btn btn--ghost picker__option" data-i="${i}">${escapeHtml(c)}</button>`).join("")}
+    </div>`;
+
+  stage.querySelectorAll(".picker__option").forEach((btn) => {
+    btn.onclick = () => {
+      stage.querySelectorAll(".picker__option").forEach(b => b.disabled = true);
+      update(lobbyRef("control"), { pick: +btn.dataset.i });
+    };
+  });
+}
+
+function renderPaused() {
+  barLeft.textContent = "Paused";
+  stage.innerHTML = `<h1 class="phone__title">Paused</h1>
+    <p class="phone__note">The TV has the game on hold.</p>`;
+}
+
+// Shown under the verdict and the scores, for the admin only.
+function advanceButton(label) {
+  if (!me.isAdmin) return "";
+  return `<div><button class="btn" id="advance">${label}</button></div>`;
+}
+
+function wireAdvance() {
+  const btn = document.getElementById("advance");
+  if (!btn) return;
+  btn.onclick = () => {
+    btn.disabled = true;
+    update(lobbyRef("control"), { advance: true });
+  };
+}
+
 function renderVerdict(correct) {
   barLeft.textContent = "";
   if (picked === null) {
     stage.innerHTML = `<p class="verdict">Too slow</p>
-      <p class="phone__note">Answer ${correct + 1} was right.</p>`;
+      <p class="phone__note">Answer ${correct + 1} was right.</p>
+      ${advanceButton("Show the scores")}`;
+    wireAdvance();
     return;
   }
   const right = picked === correct;
   stage.innerHTML = `
     <p class="verdict ${right ? "verdict--right" : "verdict--wrong"}">
       ${right ? "Correct" : "Wrong"}</p>
-    <p class="phone__note">${right ? "A point to you." : `Answer ${correct + 1} was right.`}</p>`;
+    <p class="phone__note">${right ? "A point to you." : `Answer ${correct + 1} was right.`}</p>
+    ${advanceButton("Show the scores")}`;
+  wireAdvance();
 }
 
 function renderBetween(lobby) {
@@ -167,7 +232,9 @@ function renderBetween(lobby) {
   stage.innerHTML = `
     <p class="eyebrow">Your score</p>
     <p class="phone__title" style="font-size:clamp(56px,22vw,110px)">${mine}</p>
-    <p class="phone__note">Scores are on the TV. Next question shortly.</p>`;
+    <p class="phone__note">Scores are on the TV.</p>
+    ${advanceButton("Next question")}`;
+  wireAdvance();
 }
 
 function renderOver(lobby) {
@@ -180,6 +247,12 @@ function renderOver(lobby) {
     <p class="eyebrow">You finished</p>
     <p class="phone__title">${ordinal(place)}</p>
     <p class="phone__note">${mine} point${mine === 1 ? "" : "s"}. Stay here — the TV can start another game.</p>`;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
 }
 
 function ordinal(n) {
