@@ -24,6 +24,7 @@ import {
   db, ref, get, set, update, remove, onValue, runTransaction,
   now, makeCode, shuffle, decode
 } from "./firebase.js";
+import { sfx, music, unlock, setEnabled, stopMusic } from "./audio.js";
 
 const stage    = document.getElementById("stage");
 const barLeft  = document.getElementById("bar-left");
@@ -48,6 +49,8 @@ const state = {
   count: 10,        // questions in the game
   mode: "random",   // random | choose
   game: "everyone", // everyone | buzzer
+  sound: true,      // board audio on or off
+  lastCount: 0,     // roster size, to spot an arrival
   locked: new Set(),// players out of the current buzzer question
   qLeft: 0,         // question time still to run when someone buzzed
   seq: 0,           // guards the staged reveal against a round being dropped
@@ -124,6 +127,14 @@ function renderSetup() {
       </div>
 
       <div class="setup__group">
+        <p class="eyebrow">Sound</p>
+        <div class="bubbles bubbles--tight" id="g-sound">
+          <button class="bubble is-on" data-sound="on">On</button>
+          <button class="bubble" data-sound="off">Off</button>
+        </div>
+      </div>
+
+      <div class="setup__group">
         <p class="eyebrow">Game mode</p>
         <div class="bubbles bubbles--tight" id="g-game">
           <button class="bubble is-on" data-game="everyone">Everyone answers</button>
@@ -193,6 +204,7 @@ function renderSetup() {
     document.querySelectorAll("[data-cat]").forEach(b => b.classList.remove("is-on"));
   };
 
+  pickOne("g-sound", "sound", (v) => { state.sound = v === "on"; setEnabled(state.sound); });
   pickOne("g-game", "game", (v) => { state.game = v; });
   pickOne("g-mode", "mode", (v) => { state.mode = v; });
   pickOne("g-diff", "diff", (v) => { state.diff = v; });
@@ -239,6 +251,7 @@ function pickOne(groupId, key, apply) {
 }
 
 async function openLobby() {
+  unlock();  // browsers only allow audio to start from a real click
   const err   = document.getElementById("setup-error");
   const diff  = state.diff || "";
   const count = Math.min(200, Math.max(1, state.count || 10));
@@ -291,6 +304,7 @@ async function openLobby() {
   });
 
   state.stage = "lobby";
+  music("lobby");
   watchPlayers();
   watchStartRequest();
   watchAdvance();
@@ -344,6 +358,9 @@ function watchPlayers() {
     state.players = snap.val() || {};
     const count = Object.keys(state.players).length;
 
+    if (count > state.lastCount) sfx.join();
+    state.lastCount = count;
+
     if (count) state.hadPlayers = true;
     else if (state.hadPlayers) return abandonLobby();
 
@@ -374,6 +391,7 @@ async function abandonLobby() {
   state.closing = false;
   state.stage = "setup";
   state.seq += 1;
+  stopMusic();
   state.used = new Set();
   state.lastCat = null;
   state.current = null;
@@ -557,6 +575,9 @@ async function askQuestion(category) {
     <h2 class="question">${escapeHtml(q.question)}</h2>
     <div class="answers" id="answers"></div>`;
 
+  music("question");
+  sfx.question();
+
   await wait(READ_MS);
   if (state.seq !== token) return;
 
@@ -569,6 +590,7 @@ async function askQuestion(category) {
     el.dataset.i = i;
     el.innerHTML = `<span class="numeral">${i + 1}</span><span>${escapeHtml(q.answers[i])}</span>`;
     box.appendChild(el);
+    sfx.answer(i);
     await wait(STAGGER_MS);
   }
   if (state.seq !== token) return;
@@ -612,6 +634,7 @@ async function takeTheBuzz(pid) {
   state.qLeft = state.seconds ? Math.max(0, state.endsAtLocal - now()) : 0;
 
   const player = state.players[pid];
+  sfx.buzz();
   barRight.innerHTML = `<span class="tally">${escapeHtml(player.name)} buzzed</span>`;
 
   await update(lobbyRef(), {
@@ -648,6 +671,8 @@ async function settleBuzz(pid, choice) {
   const score = (player?.score || 0) + (right ? 1 : -1);
 
   await update(lobbyRef(), { [`players/${pid}/score`]: score });
+
+  right ? sfx.correct() : sfx.wrong();
 
   if (right) {
     if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
@@ -722,10 +747,16 @@ function runTimer(ms, onEnd = closeQuestion) {
   const startedAt = now();
   state.endsAtLocal = startedAt + ms;
   timerEl.classList.remove("hidden");
+  let lastWhole = Infinity;
   state.ticker = setInterval(() => {
-    const left = Math.max(0, 1 - (now() - startedAt) / ms);
-    timerFill.style.transform = `scaleX(${left})`;
-    if (left <= 0) { clearInterval(state.ticker); onEnd(); }
+    const msLeft = Math.max(0, ms - (now() - startedAt));
+    timerFill.style.transform = `scaleX(${msLeft / ms})`;
+
+    const whole = Math.ceil(msLeft / 1000);
+    if (whole <= 5 && whole > 0 && whole < lastWhole) sfx.pip();
+    lastWhole = whole;
+
+    if (msLeft <= 0) { clearInterval(state.ticker); onEnd(); }
   }, 80);
 }
 
@@ -790,6 +821,7 @@ async function closeQuestion() {
 // The answer stays up until someone moves it on. Nothing is automatic.
 function revealAnswer(q, gained) {
   state.stage = "reveal";
+  if (state.game !== "buzzer") gained.size ? sfx.correct() : sfx.timeUp();
   barRight.textContent = "";
   document.querySelectorAll(".plate").forEach((el) => {
     const i = +el.dataset.i;
@@ -825,6 +857,8 @@ function showScores() {
   stage.innerHTML = `<div class="board" id="live-board"></div>
     <p class="cue">${escapeHtml(adminName())} ${last ? "can start another game." : "calls the next question."}</p>`;
   paintBoard(document.getElementById("live-board"));
+  music(last ? null : "scores");
+  if (last) sfx.gameOver();
   update(lobbyRef(), { status: last ? "over" : "scores", correct: null });
 }
 
