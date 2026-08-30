@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivial Night — build the question bank</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .tool { max-width: 760px; margin: 0 auto; padding: 6vh 5vw; display: grid; gap: 1.4rem; }
+  .tool h1 { font-size: clamp(28px, 5vw, 48px); }
+  .log {
+    background: rgba(0,0,0,0.28);
+    border-radius: 14px;
+    padding: 1rem 1.2rem;
+    height: 46vh;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .log b { opacity: 0.55; font-weight: 400; }
+  .row { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="tool">
+  <h1>Build the question bank</h1>
+  <p class="phone__note">
+    Pulls the Open Trivia Database into <code>questions.en.json</code>. The API
+    allows 50 questions per call and one call every five seconds, so a full pull
+    takes roughly ten minutes. Leave this tab open and in the foreground.
+  </p>
+
+  <div class="row">
+    <button class="btn" id="go">Start the pull</button>
+    <button class="btn btn--ghost" id="save" disabled>Download questions.en.json</button>
+    <span class="phone__note" id="count"></span>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <p class="phone__note">
+    Open Trivia DB data is licensed CC BY-SA 4.0. The attribution line in
+    README.md covers it, and anything derived from this file — a translation,
+    for instance — inherits the same licence.
+  </p>
+</div>
+
+<script type="module">
+const API      = "https://opentdb.com";
+const PAGE     = 50;
+const PAUSE_MS = 5200;
+const DIFFICULTIES = ["easy", "medium", "hard"];
+
+const logEl   = document.getElementById("log");
+const goBtn   = document.getElementById("go");
+const saveBtn = document.getElementById("save");
+const countEl = document.getElementById("count");
+
+let bank = [];
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function say(text, dim = false) {
+  const line = document.createElement("div");
+  if (dim) { const b = document.createElement("b"); b.textContent = text; line.appendChild(b); }
+  else line.textContent = text;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function json(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+goBtn.onclick = async () => {
+  goBtn.disabled = true;
+  saveBtn.disabled = true;
+  bank = [];
+  logEl.textContent = "";
+
+  try {
+    const { trivia_categories: categories } = await json(`${API}/api_category.php`);
+    const { token } = await json(`${API}/api_token.php?command=request`);
+    say(`${categories.length} categories found. Starting.`);
+
+    const out = [];
+
+    for (const cat of categories) {
+      for (const difficulty of DIFFICULTIES) {
+        let guard = 0;
+        while (guard++ < 40) {
+          await sleep(PAUSE_MS);
+
+          const url = `${API}/api.php?amount=${PAGE}&category=${cat.id}`
+                    + `&difficulty=${difficulty}&type=multiple`
+                    + `&encode=url3986&token=${token}`;
+
+          let data;
+          try { data = await json(url); }
+          catch (err) { say(`  retrying (${err.message})`, true); continue; }
+
+          // 1 = nothing left for this filter, 4 = token exhausted.
+          if (data.response_code === 1) break;
+          if (data.response_code === 4) {
+            await json(`${API}/api_token.php?command=reset&token=${token}`);
+            break;
+          }
+          if (data.response_code !== 0 || !data.results?.length) break;
+
+          for (const q of data.results) {
+            out.push({
+              category: decodeURIComponent(q.category),
+              difficulty: q.difficulty,
+              question: decodeURIComponent(q.question),
+              correct_answer: decodeURIComponent(q.correct_answer),
+              incorrect_answers: q.incorrect_answers.map(decodeURIComponent)
+            });
+          }
+
+          say(`  ${cat.name} / ${difficulty}: +${data.results.length}`, true);
+          countEl.textContent = `${out.length} pulled`;
+          if (data.results.length < PAGE) break;
+        }
+      }
+    }
+
+    // The same question can appear under overlapping filters. Keep one of each.
+    const seen = new Set();
+    bank = out.filter(q => !seen.has(q.question) && seen.add(q.question));
+
+    say(`\nDone. ${bank.length} unique questions.`);
+    countEl.textContent = `${bank.length} questions ready`;
+    saveBtn.disabled = false;
+  } catch (err) {
+    say(`\nStopped: ${err.message}`);
+  } finally {
+    goBtn.disabled = false;
+  }
+};
+
+saveBtn.onclick = () => {
+  const blob = new Blob([JSON.stringify(bank, null, 1) + "\n"], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "questions.en.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>
