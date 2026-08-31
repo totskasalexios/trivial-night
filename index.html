@@ -233,6 +233,12 @@ function renderSetup() {
     state.count = v === "custom" ? +custom.value : +v;
   });
 
+  for (const id of ["secs-custom", "count-custom"]) {
+    document.getElementById(id).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
+    });
+  }
+
   document.getElementById("secs-custom").oninput  = (e) => { state.seconds = +e.target.value; };
   document.getElementById("count-custom").oninput = (e) => { state.count   = +e.target.value; };
 
@@ -264,6 +270,7 @@ function renderSetup() {
   state.count = state.count || 10;
 
   document.getElementById("go").onclick = openLobby;
+  document.querySelector(".bubble")?.focus();
 }
 
 // One live choice per group: highlight the chosen bubble, dim the rest.
@@ -390,6 +397,7 @@ function renderLobby() {
     </div>`;
 
   paintQr();
+  document.getElementById("lobby-back")?.focus();
   document.getElementById("host-start").onclick = startGame;
   document.getElementById("lobby-back").onclick = abandonLobby;
   paintRoster();
@@ -766,6 +774,68 @@ async function settleBuzz(pid, choice) {
   barRight.innerHTML = `<span class="tally">Buzzers open</span>`;
   runTimer(state.seconds ? state.qLeft : 0);
 }
+
+// ---------- remote control ----------
+
+// TV browsers rarely move focus with the D-pad on their own, so the board
+// works out the nearest control in the direction pressed. OK activates it.
+
+const FOCUSABLE = "button:not([disabled]), input, [tabindex='0']";
+
+function visibleControls() {
+  return [...document.querySelectorAll(FOCUSABLE)].filter((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  });
+}
+
+function centreOf(el) {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+function moveFocus(dir) {
+  const controls = visibleControls();
+  if (!controls.length) return;
+
+  const active = document.activeElement;
+  if (!active || !controls.includes(active)) { controls[0].focus(); return; }
+
+  const from = centreOf(active);
+  let best = null;
+  let bestScore = Infinity;
+
+  for (const el of controls) {
+    if (el === active) continue;
+    const to = centreOf(el);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+
+    // Must actually lie in the direction pressed, with a little tolerance so
+    // controls on the same row or column still qualify.
+    const along = dir === "left" ? -dx : dir === "right" ? dx : dir === "up" ? -dy : dy;
+    const across = (dir === "left" || dir === "right") ? Math.abs(dy) : Math.abs(dx);
+    if (along <= 8) continue;
+
+    // Straight ahead beats far to one side.
+    const score = along + across * 2.2;
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+
+  if (best) best.focus();
+}
+
+window.addEventListener("keydown", (e) => {
+  const dirs = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
+  const dir = dirs[e.key];
+  if (!dir) return;
+
+  // Inside a number field the arrows belong to the field.
+  if (document.activeElement?.tagName === "INPUT") return;
+
+  e.preventDefault();
+  moveFocus(dir);
+});
 
 // ---------- pause ----------
 

@@ -644,6 +644,7 @@ button {
   letter-spacing: 0.16em;
   font-size: clamp(15px, 1.55vw, 30px);
   color: var(--muted);
+  text-align: center;
   margin: 0 0 0.35em;
 }
 
@@ -655,5 +656,22 @@ button {
   font-size: clamp(24px, 2.9vw, 56px);
   line-height: 1.05;
   color: var(--bone);
+  text-align: center;
   margin: 0 0 0.5em;
 }
+
+/* ---------- remote focus ---------- */
+
+/* Visible from across the room, and shown for programmatic focus too, since
+   a D-pad never produces the mouse-versus-keyboard distinction :focus-visible
+   relies on. */
+.bubble:focus,
+.btn:focus,
+.setup__custom:focus {
+  outline: 4px solid var(--bone);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+.setup__custom:focus { border-radius: 14px; }
+
+.bubble:focus { box-shadow: 0 0 26px rgba(243, 237, 227, 0.35); }
