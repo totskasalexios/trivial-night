@@ -55,6 +55,7 @@ const state = {
   lastCount: 0,     // roster size, to spot an arrival
   sweeper: null,    // interval that clears out players long gone
   locked: new Set(),// players out of the current buzzer question
+  dead: new Set(),  // answers already burnt on this question
   qLeft: 0,         // question time still to run when someone buzzed
   seq: 0,           // guards the staged reveal against a round being dropped
   pool: [],         // questions matching the filters
@@ -636,6 +637,7 @@ async function askQuestion(category) {
   state.lastCat = q.category;
   state.stage = "reading";
   state.locked = new Set();
+  state.dead = new Set();
   state.qLeft = state.seconds * 1000;
 
   // Nothing is answerable yet: the phones stay shut until the answers are up.
@@ -766,12 +768,20 @@ async function settleBuzz(pid, choice) {
   }
 
   state.locked.add(pid);
-  const stillIn = Object.keys(state.players).filter(id => !state.locked.has(id));
 
-  if (!stillIn.length || (state.seconds && state.qLeft <= 0)) {
+  // Name the guess and grey it out. A timeout has no answer to burn.
+  if (choice != null) {
+    state.dead.add(choice);
+    burnAnswer(choice, player?.name);
+  }
+
+  const stillIn = Object.keys(state.players).filter(id => !state.locked.has(id));
+  const answersLeft = 4 - state.dead.size - 1; // the correct one is still there
+
+  if (!stillIn.length || answersLeft <= 0 || (state.seconds && state.qLeft <= 0)) {
     if (buzzUnsub) { buzzUnsub(); buzzUnsub = null; }
     await update(lobbyRef(), { status: "reveal", correct: q.correct, buzz: null });
-    return revealAnswer(q, new Set(), { [pid]: { choice } });
+    return revealAnswer(q, new Set(), {});
   }
 
   state.stage = "question";
@@ -780,7 +790,8 @@ async function settleBuzz(pid, choice) {
     endsAt: state.seconds ? now() + state.qLeft : 0,
     "buzz/holder": null,
     "buzz/answerer": null,
-    [`buzz/locked/${pid}`]: true
+    [`buzz/locked/${pid}`]: true,
+    ...(choice != null ? { [`buzz/dead/${choice}`]: player?.name || true } : {})
   });
 
   barRight.innerHTML = `<span class="tally">Buzzers open</span>`;
@@ -973,6 +984,29 @@ async function closeQuestion() {
 }
 
 // The answer stays up until someone moves it on. Nothing is automatic.
+// Puts a name tag on a plate, making the strip if it isn't there yet.
+function addSticker(plate, name) {
+  let strip = plate.querySelector(".stickers");
+  if (!strip) {
+    strip = document.createElement("span");
+    strip.className = "stickers";
+    plate.appendChild(strip);
+  }
+  const tag = document.createElement("span");
+  tag.className = "sticker";
+  tag.textContent = name;
+  strip.appendChild(tag);
+}
+
+// A wrong answer in buzzer mode is burnt: named, greyed, and out of play for
+// everyone still to buzz.
+function burnAnswer(choice, name) {
+  const plate = document.querySelector(`.plate[data-i="${choice}"]`);
+  if (!plate) return;
+  plate.classList.add("is-out");
+  if (name) addSticker(plate, name);
+}
+
 function revealAnswer(q, gained, given = {}) {
   state.stage = "reveal";
   if (state.game !== "buzzer") gained.size ? sfx.correct() : sfx.timeUp();
@@ -991,13 +1025,7 @@ function revealAnswer(q, gained, given = {}) {
     if (i === q.correct) el.classList.add("is-correct");
     else el.classList.add("is-dimmed");
 
-    const names = byAnswer[i];
-    if (!names?.length) return;
-    const strip = document.createElement("span");
-    strip.className = "stickers";
-    strip.innerHTML = names
-      .map(n => `<span class="sticker">${escapeHtml(n)}</span>`).join("");
-    el.appendChild(strip);
+    (byAnswer[i] || []).forEach(n => addSticker(el, n));
   });
 
   const names = [...gained].map(pid => state.players[pid]?.name).filter(Boolean);

@@ -31,6 +31,7 @@ let picked     = null;
 let lastLobby  = null;
 let lastLocked = false;
 let lastHolder = null;
+let lastDead   = "";
 
 const lobbyRef = (...path) => ref(db, ["lobbies", me.code, ...path].join("/"));
 
@@ -115,12 +116,15 @@ function watchLobby() {
 
     const lockedNow = !!lobby.buzz?.locked?.[me.pid];
     const holderNow = lobby.buzz?.holder || null;
+    const deadNow = Object.keys(lobby.buzz?.dead || {}).join(",");
     const changed = lobby.status !== lastStatus
                  || lobby.qIndex !== lastIndex
                  || lockedNow !== lastLocked
-                 || holderNow !== lastHolder;
+                 || holderNow !== lastHolder
+                 || deadNow !== lastDead;
     lastLocked = lockedNow;
     lastHolder = holderNow;
+    lastDead = deadNow;
     lastLobby = lobby;
     lastStatus = lobby.status;
     lastIndex  = lobby.qIndex;
@@ -264,18 +268,24 @@ function renderAnswering(lobby) {
   }
 
   picked = null;
+  const dead = lobby.buzz?.dead || {};
+
   stage.innerHTML = `
     <p class="phone__note">You're in. Tap the number, quickly.</p>
     <div class="pad">
       ${[1, 2, 3, 4].map(n => `
-        <button class="plate plate--${n}" data-i="${n - 1}" aria-label="Answer ${n}">
+        <button class="plate plate--${n} ${dead[n - 1] !== undefined ? "is-out" : ""}"
+                data-i="${n - 1}" aria-label="Answer ${n}"
+                ${dead[n - 1] !== undefined ? "disabled" : ""}>
           <span class="numeral">${n}</span>
         </button>`).join("")}
-    </div>`;
+    </div>
+    ${Object.keys(dead).length
+      ? `<p class="phone__note">Greyed answers are already gone.</p>` : ""}`;
 
   stage.querySelectorAll(".pad .plate").forEach((btn) => {
     btn.onclick = async () => {
-      if (picked !== null) return;
+      if (picked !== null || btn.disabled) return;
       picked = +btn.dataset.i;
       btn.classList.add("is-picked");
       stage.querySelectorAll(".pad .plate").forEach((other) => {
