@@ -735,3 +735,41 @@ button {
 }
 .plate.is-out .numeral { opacity: 0.5; text-shadow: none; }
 .plate.is-out .sticker { filter: none; }
+
+/* ---------- lock in ---------- */
+
+/* Chosen but not yet committed. */
+.pad .plate.is-selected {
+  outline: 5px solid var(--bone);
+  outline-offset: -5px;
+  transform: scale(0.98);
+}
+
+.lockin {
+  width: 100%;
+  margin-top: 12px;
+  padding: 1.05em 1em;
+  border: 2px solid var(--ink-3);
+  border-radius: 20px;
+  background: var(--ink-2);
+  color: var(--muted);
+  font-family: var(--display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: clamp(20px, 6vw, 30px);
+  cursor: pointer;
+  transition: background 160ms var(--ease), color 160ms var(--ease),
+              border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+/* Lit the moment an answer is highlighted. */
+.lockin.is-ready {
+  background: var(--p2);
+  border-color: var(--p2);
+  color: var(--p2-on);
+  box-shadow: 0 0 30px rgba(242, 165, 65, 0.45);
+}
+
+.lockin:disabled { cursor: default; }
+.lockin:disabled:not(.is-ready) { opacity: 0.6; }

@@ -130,11 +130,13 @@ function watchLobby() {
     lastIndex  = lobby.qIndex;
     if (!changed) return;
 
+    clearAutoLock();
+
     if (lobby.status === "lobby")    return renderWaiting();
     if (lobby.status === "picking")  return renderPicker(lobby);
     if (lobby.status === "reading")  return renderReading(lobby);
     if (lobby.status === "question")  return lobby.game === "buzzer"
-      ? renderBuzzer(lobby) : renderPad(lobby.qIndex);
+      ? renderBuzzer(lobby) : renderPad(lobby);
     if (lobby.status === "answering") return renderAnswering(lobby);
     if (lobby.status === "paused")   return renderPaused();
     if (lobby.status === "reveal")   return renderVerdict(lobby.correct);
@@ -155,40 +157,95 @@ function renderWaiting() {
   if (btn) btn.onclick = () => update(lobbyRef("control"), { start: true });
 }
 
-async function renderPad(qIndex) {
-  picked = null;
-  barLeft.textContent = `Question ${qIndex + 1}`;
+// Tap chooses, Lock in commits. Nothing reaches the board until it is locked,
+// so a mis-tap costs nothing.
+let autoLock = null;
+let clockSkew = 0;
+onValue(ref(db, ".info/serverTimeOffset"), (snap) => { clockSkew = snap.val() || 0; });
+
+function clearAutoLock() {
+  clearTimeout(autoLock);
+  autoLock = null;
+}
+
+// Fires slightly before the board closes the question, so the write lands.
+function scheduleAutoLock(endsAt, commit) {
+  clearAutoLock();
+  if (!endsAt) return;
+  const left = endsAt - (Date.now() + clockSkew) - 600;
+  autoLock = setTimeout(commit, Math.max(0, left));
+}
+
+// The pad and its lock button, shared by both game modes.
+function answerPad({ qIndex, endsAt, dead = {}, note }) {
+  let choice = null;
+  let locked = false;
+
   stage.innerHTML = `
-    <p class="phone__note">Answer is on the TV. Tap its number.</p>
+    <p class="phone__note">${note}</p>
     <div class="pad">
       ${[1, 2, 3, 4].map(n => `
-        <button class="plate plate--${n}" data-i="${n - 1}" aria-label="Answer ${n}">
+        <button class="plate plate--${n} ${dead[n - 1] !== undefined ? "is-out" : ""}"
+                data-i="${n - 1}" aria-label="Answer ${n}"
+                ${dead[n - 1] !== undefined ? "disabled" : ""}>
           <span class="numeral">${n}</span>
         </button>`).join("")}
-    </div>`;
+    </div>
+    <button class="lockin" id="lockin" disabled>Lock in</button>`;
 
-  const already = await get(lobbyRef("answers", String(qIndex), me.pid));
-  if (already.exists()) {
-    picked = already.val().choice;
-    stage.querySelectorAll(".pad .plate").forEach((b) => {
-      if (+b.dataset.i === picked) b.classList.add("is-picked");
-      else b.classList.add("is-dimmed");
+  const buttons = [...stage.querySelectorAll(".pad .plate")];
+  const lockBtn = document.getElementById("lockin");
+
+  async function commit() {
+    if (locked || choice === null) return;
+    locked = true;
+    clearAutoLock();
+    picked = choice;
+    lockBtn.disabled = true;
+    lockBtn.classList.remove("is-ready");
+    lockBtn.textContent = "Locked in";
+    buttons.forEach((b) => {
+      b.disabled = true;
+      if (+b.dataset.i !== choice) b.classList.add("is-dimmed");
     });
+    await set(lobbyRef("answers", String(qIndex), me.pid), { choice, at: now() });
   }
 
-  stage.querySelectorAll(".pad .plate").forEach((btn) => {
-    btn.onclick = async () => {
-      if (picked !== null) return;
-      picked = +btn.dataset.i;
-      btn.classList.add("is-picked");
-      stage.querySelectorAll(".pad .plate").forEach((other) => {
-        if (other !== btn) other.classList.add("is-dimmed");
-      });
-      await set(lobbyRef("answers", String(qIndex), me.pid), {
-        choice: picked, at: now()
-      });
+  for (const btn of buttons) {
+    btn.onclick = () => {
+      if (locked || btn.disabled) return;
+      choice = +btn.dataset.i;
+      buttons.forEach(b => b.classList.toggle("is-selected", b === btn));
+      lockBtn.disabled = false;
+      lockBtn.classList.add("is-ready");
     };
+  }
+
+  lockBtn.onclick = commit;
+
+  // Out of time with something highlighted: take it rather than lose it.
+  scheduleAutoLock(endsAt, commit);
+
+  return { commit, setChoice: (c) => { choice = c; } };
+}
+
+async function renderPad(lobby) {
+  picked = null;
+  const qIndex = lobby.qIndex;
+  barLeft.textContent = `Question ${qIndex + 1}`;
+
+  const pad = answerPad({
+    qIndex,
+    endsAt: lobby.endsAt,
+    note: "Answer is on the TV. Tap its number, then lock it in."
   });
+
+  // Already answered, and the pad only reappeared because of a pause.
+  const already = await get(lobbyRef("answers", String(qIndex), me.pid));
+  if (already.exists()) {
+    pad.setChoice(already.val().choice);
+    await pad.commit();
+  }
 }
 
 function renderPicker(lobby) {
@@ -268,33 +325,11 @@ function renderAnswering(lobby) {
   }
 
   picked = null;
-  const dead = lobby.buzz?.dead || {};
-
-  stage.innerHTML = `
-    <p class="phone__note">You're in. Tap the number, quickly.</p>
-    <div class="pad">
-      ${[1, 2, 3, 4].map(n => `
-        <button class="plate plate--${n} ${dead[n - 1] !== undefined ? "is-out" : ""}"
-                data-i="${n - 1}" aria-label="Answer ${n}"
-                ${dead[n - 1] !== undefined ? "disabled" : ""}>
-          <span class="numeral">${n}</span>
-        </button>`).join("")}
-    </div>
-    ${Object.keys(dead).length
-      ? `<p class="phone__note">Greyed answers are already gone.</p>` : ""}`;
-
-  stage.querySelectorAll(".pad .plate").forEach((btn) => {
-    btn.onclick = async () => {
-      if (picked !== null || btn.disabled) return;
-      picked = +btn.dataset.i;
-      btn.classList.add("is-picked");
-      stage.querySelectorAll(".pad .plate").forEach((other) => {
-        if (other !== btn) other.classList.add("is-dimmed");
-      });
-      await set(lobbyRef("answers", String(lobby.qIndex), me.pid), {
-        choice: picked, at: now()
-      });
-    };
+  answerPad({
+    qIndex: lobby.qIndex,
+    endsAt: lobby.endsAt,
+    dead: lobby.buzz?.dead || {},
+    note: "You're in. Tap the number, then lock it in."
   });
 }
 
