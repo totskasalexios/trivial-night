@@ -634,3 +634,26 @@ button {
 
 /* The category tag reads as a label on the box rather than a floating line. */
 .qcat { margin-bottom: 0.55em; }
+
+/* Above the box: the counter, then the category, then the question itself. */
+
+.qcount {
+  font-family: var(--body);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: clamp(15px, 1.55vw, 30px);
+  color: var(--muted);
+  margin: 0 0 0.35em;
+}
+
+.qcat {
+  font-family: var(--display);
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-size: clamp(24px, 2.9vw, 56px);
+  line-height: 1.05;
+  color: var(--bone);
+  margin: 0 0 0.5em;
+}

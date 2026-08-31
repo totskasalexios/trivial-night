@@ -559,7 +559,7 @@ async function askForCategory() {
   barRight.textContent = "";
 
   stage.innerHTML = `
-    <p class="eyebrow">Question ${state.index + 1} of ${state.count}</p>
+    <p class="qcount">Question ${state.index + 1} of ${state.count}</p>
     <h2 class="question">${escapeHtml(player.name)} is choosing</h2>
     <div class="answers">
       ${options.map((c, i) => `
@@ -628,7 +628,7 @@ async function askQuestion(category) {
   timerEl.classList.add("hidden");
 
   stage.innerHTML = `
-    <p class="eyebrow">Question ${state.index + 1} of ${state.count}</p>
+    <p class="qcount">Question ${state.index + 1} of ${state.count}</p>
     <p class="qcat">${escapeHtml(q.category)}</p>
     <h2 class="question">${escapeHtml(q.question)}</h2>
     <div class="answers" id="answers"></div>`;
