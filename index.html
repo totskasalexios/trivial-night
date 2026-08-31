@@ -5,18 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trivial Night — screen</title>
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
-<script>
-// Second source in case the first is blocked or unreachable.
-window.qrReady = new Promise((resolve) => {
-  if (window.QRCode) return resolve(true);
-  const alt = document.createElement("script");
-  alt.src = "https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js";
-  alt.onload  = () => resolve(!!window.QRCode);
-  alt.onerror = () => resolve(false);
-  document.head.appendChild(alt);
-});
-</script>
+<script src="vendor/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -367,13 +356,13 @@ function joinUrl(withCode = false) {
 }
 
 // The code travels inside the QR, so a phone that scans it only types a name.
-async function paintQr() {
+function paintQr() {
   const wrap = document.getElementById("qr-wrap");
   const canvas = document.getElementById("qr");
   const note = document.getElementById("qr-note");
   if (!wrap || !canvas) return;
 
-  const ok = window.QRCode ? true : await (window.qrReady || Promise.resolve(false));
+  const ok = !!window.QRCode;
   // Say so rather than hiding: a blank space looks like a bug in the room.
   if (!ok || !window.QRCode) {
     canvas.classList.add("hidden");
