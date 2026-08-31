@@ -405,9 +405,16 @@ function paintRoster() {
     : `<span class="phone__note">Nobody yet.</span>`;
 }
 
-// Players with a closed tab are still in the game, but nothing waits on them.
+// A phone that drops for a moment and comes straight back should not cost its
+// owner the question, so a player only stops counting after being gone a while.
+const AWAY_SETTLE_MS = 45000;
+
 function activePlayers() {
-  return Object.entries(state.players).filter(([, p]) => !p.away);
+  return Object.entries(state.players).filter(([, p]) => {
+    if (!p.away) return true;
+    if (!p.leftAt) return true;
+    return now() - p.leftAt < AWAY_SETTLE_MS;
+  });
 }
 
 function watchPlayers() {
@@ -623,7 +630,7 @@ async function askQuestion(category) {
   });
   if (state.seq !== token) return;
 
-  barLeft.textContent = q.category;
+  barLeft.textContent = "";
   barRight.textContent = "";
   timerEl.classList.add("hidden");
 

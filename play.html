@@ -94,9 +94,15 @@ async function join() {
     });
   }
 
-  await update(lobbyRef("players", me.pid), { away: null, leftAt: null });
-  onDisconnect(lobbyRef("players", me.pid)).update({
-    away: true, leftAt: serverTimestamp()
+  // Re-arm on every reconnection. A phone that backgrounds itself or loses
+  // wifi for a moment marks itself away; coming back must clear that, or the
+  // board keeps treating the player as gone for the rest of the game.
+  onValue(ref(db, ".info/connected"), (snap) => {
+    if (!snap.val()) return;
+    onDisconnect(lobbyRef("players", me.pid)).update({
+      away: true, leftAt: serverTimestamp()
+    });
+    update(lobbyRef("players", me.pid), { away: null, leftAt: null });
   });
   barRight.textContent = name;
   watchLobby();
