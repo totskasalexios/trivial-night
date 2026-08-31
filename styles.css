@@ -675,3 +675,50 @@ button {
 .setup__custom:focus { border-radius: 14px; }
 
 .bubble:focus { box-shadow: 0 0 26px rgba(243, 237, 227, 0.35); }
+
+/* ===================================================================
+   TV refinements
+   =================================================================== */
+
+/* 1. QR sits to the right of the join details. */
+.joinbox { align-items: center; }
+.joinbox__qr { order: 2; }
+.joinbox__text { order: 1; }
+
+/* 2. The question stack starts near the top instead of floating in the
+      middle, which on a large screen pushed the answers to the bottom. */
+.tv__stage { justify-content: flex-start; padding-top: clamp(6px, 1.6vh, 26px); }
+
+/* The lobby and the scoreboard still read better centred. */
+.tv__stage:has(.joinbox),
+.tv__stage:has(.board),
+.tv__stage:has(.setup) { justify-content: center; padding-top: 0; }
+
+/* 3. Answer cards: rounder, and reined in so they stop spanning the
+      full width of a television. */
+.tv .answers {
+  width: min(1500px, 88vw);
+  margin-inline: auto;
+  gap: clamp(14px, 1.5vw, 26px);
+}
+
+.tv .plate {
+  border-radius: clamp(18px, 1.7vw, 34px);
+  padding: clamp(14px, 1.6vw, 30px) clamp(20px, 2.2vw, 38px);
+  min-height: clamp(78px, 12vh, 168px);
+}
+
+/* 4. Answer text carries further across a room. */
+.tv .plate {
+  font-weight: 700;
+  font-size: clamp(19px, 2.15vw, 40px);
+  letter-spacing: -0.005em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22);
+}
+.tv .plate .numeral {
+  opacity: 1;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.24);
+}
+
+/* The question box follows the same width so the column reads as one. */
+.question { max-width: min(22ch, 78%); }
