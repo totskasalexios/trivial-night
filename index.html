@@ -6,6 +6,17 @@
 <title>Trivial Night — screen</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+// Second source in case the first is blocked or unreachable.
+window.qrReady = new Promise((resolve) => {
+  if (window.QRCode) return resolve(true);
+  const alt = document.createElement("script");
+  alt.src = "https://unpkg.com/qrcode@1.5.4/build/qrcode.min.js";
+  alt.onload  = () => resolve(!!window.QRCode);
+  alt.onerror = () => resolve(false);
+  document.head.appendChild(alt);
+});
+</script>
 </head>
 <body>
 
@@ -356,19 +367,31 @@ function joinUrl(withCode = false) {
 }
 
 // The code travels inside the QR, so a phone that scans it only types a name.
-function paintQr() {
+async function paintQr() {
   const wrap = document.getElementById("qr-wrap");
   const canvas = document.getElementById("qr");
+  const note = document.getElementById("qr-note");
   if (!wrap || !canvas) return;
 
-  if (!window.QRCode) { wrap.classList.add("hidden"); return; }
+  const ok = window.QRCode ? true : await (window.qrReady || Promise.resolve(false));
+  // Say so rather than hiding: a blank space looks like a bug in the room.
+  if (!ok || !window.QRCode) {
+    canvas.classList.add("hidden");
+    if (note) note.textContent = "QR unavailable — type the address above";
+    return;
+  }
 
   window.QRCode.toCanvas(canvas, joinUrl(true), {
     width: 420,
     margin: 1,
     errorCorrectionLevel: "M",
     color: { dark: "#171233", light: "#f3ede3" }
-  }, (err) => { if (err) wrap.classList.add("hidden"); });
+  }, (err) => {
+    if (!err) return;
+    console.error("QR failed:", err);
+    canvas.classList.add("hidden");
+    if (note) note.textContent = "QR unavailable — type the address above";
+  });
 }
 
 function renderLobby() {
@@ -380,7 +403,7 @@ function renderLobby() {
     <div class="joinbox">
       <div class="joinbox__qr" id="qr-wrap">
         <canvas id="qr"></canvas>
-        <p class="joinbox__scan">Scan to join</p>
+        <p class="joinbox__scan" id="qr-note">Scan to join</p>
       </div>
       <div class="joinbox__text">
         <p class="eyebrow">Join at</p>
