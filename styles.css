@@ -9,6 +9,7 @@
   --ink-2:    #221a45;
   --ink-3:    #2e2459;
   --bone:     #f3ede3;
+  --qbox:     #d32f2f;   /* outline of the question box */
   --muted:    #8b82c4;
 
   --p1: #e4572e;  --p1-on: #fff6f0;
@@ -615,3 +616,21 @@ button {
 }
 
 .joinbox__text { display: grid; gap: 0.1em; justify-items: center; }
+
+/* ---------- the question box ---------- */
+
+.question {
+  /* Boxed, centred and set apart from the answers below it. */
+  background: #07060b;
+  border: clamp(4px, 0.42vw, 10px) solid var(--qbox);
+  border-radius: clamp(16px, 1.5vw, 34px);
+  padding: clamp(18px, 2.6vh, 46px) clamp(24px, 3vw, 64px);
+  margin-inline: auto;
+  max-width: min(24ch, 92%);
+  text-align: center;
+  text-wrap: balance;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 42px rgba(200, 30, 30, 0.28);
+}
+
+/* The category tag reads as a label on the box rather than a floating line. */
+.qcat { margin-bottom: 0.55em; }
